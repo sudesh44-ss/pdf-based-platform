@@ -1,0 +1,98 @@
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 15, 0.88);
+  backdrop-filter: blur(8px);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  overflow: hidden;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.titleArea {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.controlsRow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.filterSelect {
+  height: 32px;
+  padding: 0 0.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-xs);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.closeBtn:hover {
+  background: var(--bg-card-hover);
+}
+
+.modalBody {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 1.5rem;
+  position: relative;
+}
+
+.zoomContainer {
+  background: #ffffff;
+  box-shadow: var(--shadow-xl);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  position: relative;
+  transition: transform var(--transition-fast);
+}
+
+.highContrastFilter {
+  filter: contrast(135%) brightness(95%);
+}
+
+.editorInvertFilter {
+  filter: invert(90%) hue-rotate(180deg) contrast(120%);
+}
+
+.sharpenFilter {
+  filter: contrast(150%) saturate(120%);
+}
+
+.disclaimerBanner {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+}

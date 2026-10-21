@@ -1,0 +1,222 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R] /Count 5 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 812 >>
+stream
+BT
+/F1 20 Tf
+50 720 Td
+(Modern Distributed Systems Architecture) Tj
+/F1 13 Tf
+0 -25 Td
+(Chapter 1: Principles of Fault-Tolerant State Machines) Tj
+/F1 11 Tf
+0 -35 Td
+(Distributed systems are composed of autonomous computing entities that communicate) Tj
+0 -18 Td
+(over asynchronous networks. Network partitions, packet loss, and unpredictable delays) Tj
+0 -18 Td
+(are normal operating conditions rather than exceptional failures.) Tj
+0 -18 Td
+() Tj
+0 -18 Td
+(Key Architectural Pillars:) Tj
+0 -18 Td
+(1. Consistency, Availability, Partition Tolerance \(CAP Theorem\)) Tj
+0 -18 Td
+(2. State Machine Replication via Consensus \(Raft / Multi-Paxos\)) Tj
+0 -18 Td
+(3. At-least-once message delivery with idempotent execution receivers) Tj
+0 -18 Td
+(4. Distributed tracing and telemetry correlation IDs) Tj
+0 -18 Td
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 899 >>
+stream
+BT
+/F1 20 Tf
+50 720 Td
+(Raft Consensus Protocol & Heartbeats) Tj
+/F1 13 Tf
+0 -25 Td
+(Chapter 2: Leader Election and Invariants) Tj
+/F1 11 Tf
+0 -35 Td
+(A Raft cluster consists of several servers; typically 5, allowing the system to tolerate) Tj
+0 -18 Td
+(2 failures. At any given time, each server is in one of three states:) Tj
+0 -18 Td
+(- Leader: Handles all client requests, replicates log entries.) Tj
+0 -18 Td
+(- Follower: Passive, responds to requests from leaders and candidates.) Tj
+0 -18 Td
+(- Candidate: Used to elect a new leader during election timeouts.) Tj
+0 -18 Td
+() Tj
+0 -18 Td
+(AppendEntries RPC Invariants:) Tj
+0 -18 Td
+(- If two entries in different logs have the same index and term, they store the same command.) Tj
+0 -18 Td
+(- If two entries in different logs have the same index and term, then their logs are identical) Tj
+0 -18 Td
+(  in all preceding entries.) Tj
+0 -18 Td
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 898 >>
+stream
+BT
+/F1 20 Tf
+50 720 Td
+(Code Focus Mode: Distributed Lock Implementation) Tj
+/F1 13 Tf
+0 -25 Td
+(Chapter 3: Lease Management & Fencing Tokens) Tj
+/F1 11 Tf
+0 -35 Td
+(// Distributed Lock with TTL and Fencing Token) Tj
+0 -18 Td
+(export class DistributedLock {) Tj
+0 -18 Td
+(  private readonly key: string;) Tj
+0 -18 Td
+(  private readonly leaseMs: number;) Tj
+0 -18 Td
+(  private fencingToken: number = 0;) Tj
+0 -18 Td
+() Tj
+0 -18 Td
+(  async acquire\(\): Promise<{ token: number; release: \(\) => Promise<void> }> {) Tj
+0 -18 Td
+(    const token = await redis.eval\(ACQUIRE_LUA_SCRIPT, [this.key], [this.leaseMs]\);) Tj
+0 -18 Td
+(    if \(!token\) throw new Error\("Could not acquire distributed lock"\);) Tj
+0 -18 Td
+(    this.fencingToken = Number\(token\);) Tj
+0 -18 Td
+(    return { token: this.fencingToken, release: \(\) => this.release\(\) };) Tj
+0 -18 Td
+(  }) Tj
+0 -18 Td
+(}) Tj
+0 -18 Td
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 817 >>
+stream
+BT
+/F1 20 Tf
+50 720 Td
+(Saga Pattern vs Two-Phase Commit) Tj
+/F1 13 Tf
+0 -25 Td
+(Chapter 4: Orchestration and Compensating Transactions) Tj
+/F1 11 Tf
+0 -35 Td
+(In microservice architectures where data is partitioned across multiple distinct databases,) Tj
+0 -18 Td
+(atomic 2PC protocols impose high latency and single points of failure \(the coordinator\).) Tj
+0 -18 Td
+() Tj
+0 -18 Td
+(The Saga pattern breaks a distributed transaction into a sequence of local transactions.) Tj
+0 -18 Td
+(Each local transaction updates the database and publishes a message or event to trigger) Tj
+0 -18 Td
+(the next local transaction in the saga.) Tj
+0 -18 Td
+() Tj
+0 -18 Td
+(If a local transaction fails, the saga executes compensating transactions that undo the changes) Tj
+0 -18 Td
+(made by preceding transactions.) Tj
+0 -18 Td
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 846 >>
+stream
+BT
+/F1 20 Tf
+50 720 Td
+(High-Throughput Storage & Backup Architecture) Tj
+/F1 13 Tf
+0 -25 Td
+(Chapter 5: Telegram Cloud Persistence & Deduplication) Tj
+/F1 11 Tf
+0 -35 Td
+(Integrating Telegram Bot API as an encrypted cloud storage tier enables:) Tj
+0 -18 Td
+(- Zero-cost decentralized document archiving for verified open-access libraries.) Tj
+0 -18 Td
+(- High network throughput and global edge CDN availability.) Tj
+0 -18 Td
+(- Automatic SHA-256 integrity verification and content-addressable storage keys.) Tj
+0 -18 Td
+() Tj
+0 -18 Td
+(Upload constraints & architecture:) Tj
+0 -18 Td
+(- Telegram Bot API standard file upload threshold: 50 MB.) Tj
+0 -18 Td
+(- Self-hosted local Telegram Bot API server threshold: 2,000 MB \(2 GB\).) Tj
+0 -18 Td
+(- Application level validation verifies magic bytes %PDF- and checks EOF integrity.) Tj
+0 -18 Td
+ET
+endstream
+endobj
+xref
+0 14
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000147 00000 n 
+0000000217 00000 n 
+0000000343 00000 n 
+0000001206 00000 n 
+0000001332 00000 n 
+0000002282 00000 n 
+0000002408 00000 n 
+0000003357 00000 n 
+0000003485 00000 n 
+0000004354 00000 n 
+0000004482 00000 n 
+trailer
+<< /Size 14 /Root 1 0 R >>
+startxref
+5380
+%%EOF

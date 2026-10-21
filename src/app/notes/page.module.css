@@ -1,0 +1,121 @@
+.container {
+  display: flex;
+  min-height: calc(100vh - var(--header-height));
+  width: 100%;
+}
+
+.mainContent {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  height: calc(100vh - var(--header-height));
+  overflow: hidden;
+}
+
+.notesSidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebarHeader {
+  padding: 1.25rem 1rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.searchBox {
+  padding: 0 1rem 0.75rem;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.notesList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.noteCard {
+  padding: 0.85rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.noteCard:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-medium);
+}
+
+.noteCardActive {
+  background: var(--accent-primary-light);
+  border-color: var(--accent-primary);
+}
+
+.noteCardTitle {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.noteCardSnippet {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.editorPane {
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  overflow-y: auto;
+  gap: 1rem;
+}
+
+.editorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.titleInput {
+  flex: 1;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  border: none;
+  background: transparent;
+  outline: none;
+}
+
+@media (max-width: 860px) {
+  .mainContent {
+    grid-template-columns: 1fr;
+  }
+}

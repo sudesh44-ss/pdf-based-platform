@@ -1,0 +1,31 @@
+.toggleContainer {
+  display: flex;
+  align-items: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+}
+
+.toggleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.toggleBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.active {
+  color: var(--accent-primary);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}

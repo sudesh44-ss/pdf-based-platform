@@ -1,0 +1,132 @@
+.toolbar {
+  height: 56px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  z-index: 30;
+  gap: 0.75rem;
+  user-select: none;
+}
+
+.leftGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.backBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.docTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.centerGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.toolBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  background: transparent;
+}
+
+.toolBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.toolBtnActive {
+  color: var(--accent-primary);
+  background: var(--accent-primary-light);
+}
+
+.badgeActive {
+  color: var(--accent-warning);
+  background: var(--accent-warning-light);
+}
+
+.pageInputWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.pageInput {
+  width: 44px;
+  height: 30px;
+  text-align: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.zoomText {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 44px;
+  text-align: center;
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-subtle);
+  margin: 0 0.25rem;
+}
+
+.rightGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+@media (max-width: 960px) {
+  .docTitle {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .zoomText,
+  .divider {
+    display: none;
+  }
+}
