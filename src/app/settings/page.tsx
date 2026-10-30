@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/components/theme/ThemeProvider';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { api } from '@/lib/api/client';
+import { Profile } from '@/lib/types/database';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -24,8 +26,13 @@ export default function SettingsPage() {
   const [defaultViewMode, setDefaultViewMode] = useState('single');
   const [autoCropEnabled, setAutoCropEnabled] = useState(false);
   const [savedFeedback, setSavedFeedback] = useState(false);
+  const [userProfile, setUserProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
+    api.auth.getMe().then((res) => {
+      setUserProfile(res.profile);
+    }).catch(() => {});
+
     const storedZoom = localStorage.getItem('smart_pdf_pref_zoom');
     if (storedZoom) setDefaultZoom(storedZoom);
     const storedView = localStorage.getItem('smart_pdf_pref_view');
@@ -50,8 +57,14 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await api.auth.logout();
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
     router.push('/auth/login');
+    router.refresh();
   };
 
   return (

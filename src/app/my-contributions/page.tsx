@@ -12,7 +12,7 @@ import {
   Shield,
   Layers,
 } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { ContributionSubmission } from '@/lib/types/database';
 import { validatePdfBuffer } from '@/lib/pdf/validator';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -29,8 +29,13 @@ export default function MyContributionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const reload = () => {
-    setSubmissions(storageEngine.getSubmissions());
+  const reload = async () => {
+    try {
+      const res = await api.contributions.list();
+      setSubmissions(res.submissions || []);
+    } catch (err) {
+      console.error('Error fetching submissions:', err);
+    }
   };
 
   useEffect(() => {
@@ -82,7 +87,7 @@ export default function MyContributionsPage() {
         return;
       }
 
-      storageEngine.createSubmission({
+      await api.contributions.submit({
         title: title.trim(),
         description: description.trim(),
         file_name: selectedFile.name,
@@ -98,7 +103,7 @@ export default function MyContributionsPage() {
       setDescription('');
       setSelectedFile(null);
       setRightsDeclared(false);
-      reload();
+      await reload();
 
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: any) {

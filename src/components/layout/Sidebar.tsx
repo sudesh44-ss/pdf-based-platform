@@ -14,7 +14,7 @@ import {
   HardDrive,
   UploadCloud,
   Settings,
-  Shield,
+  User,
   HelpCircle,
 } from 'lucide-react';
 import styles from './Sidebar.module.css';
@@ -121,11 +121,11 @@ export function Sidebar({ counts }: SidebarProps) {
           <span>Submissions</span>
         </Link>
         <Link
-          href="/admin"
-          className={`${styles.linkItem} ${isLinkActive('/admin') ? styles.linkItemActive : ''}`}
+          href="/profile"
+          className={`${styles.linkItem} ${isLinkActive('/profile') ? styles.linkItemActive : ''}`}
         >
-          <div className={styles.iconWrapper}><Shield size={17} /></div>
-          <span>Admin Portal</span>
+          <div className={styles.iconWrapper}><User size={17} /></div>
+          <span>My Profile</span>
         </Link>
         <Link
           href="/settings"

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { FileText, Heart, Calendar, BookOpen, Layers, User } from 'lucide-react';
 import { Document } from '@/lib/types/database';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import styles from './DocumentCard.module.css';
 
 interface DocumentCardProps {
@@ -34,17 +34,27 @@ export function DocumentCard({ document: initialDoc, onLikeToggle }: DocumentCar
     }
   };
 
-  const handleLike = (e: React.MouseEvent) => {
+  const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const result = storageEngine.toggleLike(doc.id);
-    setDoc({
-      ...doc,
-      is_liked: result.isLiked,
-      likes_count: result.likesCount,
-    });
-    if (onLikeToggle) {
-      onLikeToggle(doc.id, result.isLiked, result.likesCount);
+    const willLike = !doc.is_liked;
+    try {
+      const result = await api.documents.toggleLike(doc.id, willLike);
+      setDoc({
+        ...doc,
+        is_liked: result.liked,
+        likes_count: result.likesCount,
+      });
+      if (onLikeToggle) {
+        onLikeToggle(doc.id, result.liked, result.likesCount);
+      }
+    } catch {
+      // If unauthenticated, toggle locally for UI feedback
+      setDoc((prev) => ({
+        ...prev,
+        is_liked: willLike,
+        likes_count: willLike ? prev.likes_count + 1 : Math.max(0, prev.likes_count - 1),
+      }));
     }
   };
 

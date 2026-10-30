@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CropSettings, ReadingProgress, ViewMode } from '@/lib/types/database';
 import { ocrEngine } from '@/lib/ocr/engine';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { ReaderToolbar } from './ReaderToolbar';
 import { ThumbnailDrawer } from './ThumbnailDrawer';
 import { SmartCropOverlay } from './SmartCropOverlay';
@@ -57,17 +57,29 @@ export function PdfViewer({
   // Active reading time tracking
   const activeSecondsRef = useRef(0);
 
-  // 1. Load saved progress from storageEngine
+  // 1. Load saved progress from API
   useEffect(() => {
-    const saved = storageEngine.getReadingProgress(documentId);
-    if (saved) {
-      if (saved.current_page > 0) setCurrentPage(saved.current_page);
-      if (saved.zoom_level > 0) setZoom(saved.zoom_level);
-      if (saved.crop_settings) setCropSettings(saved.crop_settings);
-      if (saved.view_mode) setViewMode(saved.view_mode);
-    }
-    const bms = storageEngine.getBookmarks(documentId);
-    setIsBookmarked(bms.some((b) => b.page_number === currentPage));
+    let isMounted = true;
+    api.readingProgress.list(documentId).then((res) => {
+      if (!isMounted) return;
+      const found = res.progressList?.[0]?.progress;
+      if (found) {
+        if (found.current_page > 0) setCurrentPage(found.current_page);
+        if (found.zoom_level > 0) setZoom(found.zoom_level);
+        if (found.crop_settings) setCropSettings(found.crop_settings);
+        if (found.view_mode) setViewMode(found.view_mode);
+      }
+    }).catch(() => {});
+
+    api.bookmarks.list(documentId).then((res) => {
+      if (!isMounted) return;
+      const bms = res.bookmarks || [];
+      setIsBookmarked(bms.some((b) => b.page_number === currentPage));
+    }).catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
   }, [documentId, currentPage]);
 
   // 2. Active reading time ticker
@@ -76,7 +88,7 @@ export function PdfViewer({
       activeSecondsRef.current += 1;
       // Persist progress periodically
       if (activeSecondsRef.current % 15 === 0 && totalPages > 0) {
-        storageEngine.saveReadingProgress({
+        api.readingProgress.save({
           document_id: documentId,
           current_page: currentPage,
           total_pages: totalPages,
@@ -84,7 +96,7 @@ export function PdfViewer({
           crop_settings: cropSettings,
           view_mode: viewMode,
           active_seconds: 15,
-        });
+        }).catch(() => {});
       }
     }, 1000);
     return () => clearInterval(timer);
@@ -223,17 +235,28 @@ export function PdfViewer({
     }
   };
 
-  const toggleBookmark = () => {
+  const toggleBookmark = async () => {
     if (isBookmarked) {
-      storageEngine.removeBookmark(documentId, currentPage);
+      try {
+        const res = await api.bookmarks.list(documentId);
+        const match = res.bookmarks?.find((b) => b.page_number === currentPage);
+        if (match) {
+          await api.bookmarks.delete(match.id);
+        }
+      } catch (err) {
+        console.error('Error removing bookmark:', err);
+      }
       setIsBookmarked(false);
     } else {
-      storageEngine.addBookmark({
-        document_id: documentId,
-        page_number: currentPage,
-        title: `Page ${currentPage} — ${documentTitle}`,
-        document_title: documentTitle,
-      });
+      try {
+        await api.bookmarks.create({
+          document_id: documentId,
+          page_number: currentPage,
+          title: `Page ${currentPage} — ${documentTitle}`,
+        });
+      } catch (err) {
+        console.error('Error adding bookmark:', err);
+      }
       setIsBookmarked(true);
     }
   };

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, FileX } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { Document } from '@/lib/types/database';
 import { PdfViewer } from '@/components/reader/PdfViewer';
 
@@ -13,14 +13,24 @@ export default function ReaderPage() {
   const documentId = params?.documentId as string;
   const [doc, setDoc] = useState<Document | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
     if (documentId) {
-      const found = storageEngine.getDocumentById(documentId);
-      if (found) {
-        setDoc(found);
-      }
+      setLoading(true);
+      api.documents
+        .getById(documentId)
+        .then((found) => {
+          setDoc(found);
+        })
+        .catch((err) => {
+          console.error('Failed to load document in reader:', err);
+          setDoc(null);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
     }
   }, [documentId]);
 
@@ -75,7 +85,7 @@ export default function ReaderPage() {
     <PdfViewer
       documentId={doc.id}
       documentTitle={doc.title}
-      pdfUrl={doc.storage_file_path || '/samples/sample-study-guide.pdf'}
+      pdfUrl={`/api/documents/${doc.id}/file`}
       initialPage={1}
       totalPages={doc.page_count}
     />

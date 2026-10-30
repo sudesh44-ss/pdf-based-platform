@@ -18,7 +18,7 @@ import {
   Share2,
   Check,
 } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { Document } from '@/lib/types/database';
 import styles from './page.module.css';
 
@@ -36,10 +36,14 @@ export default function DocumentDetailPage() {
 
   useEffect(() => {
     if (documentId) {
-      const found = storageEngine.getDocumentById(documentId);
-      if (found) {
-        setDoc(found);
-      }
+      api.documents
+        .getById(documentId)
+        .then((found) => {
+          setDoc(found);
+        })
+        .catch(() => {
+          setDoc(null);
+        });
     }
   }, [documentId]);
 
@@ -73,21 +77,39 @@ export default function DocumentDetailPage() {
     );
   }
 
-  const handleLike = () => {
-    const result = storageEngine.toggleLike(doc.id);
-    setDoc({
-      ...doc,
-      is_liked: result.isLiked,
-      likes_count: result.likesCount,
-    });
+  const handleLike = async () => {
+    const willLike = !doc.is_liked;
+    try {
+      const result = await api.documents.toggleLike(doc.id, willLike);
+      setDoc({
+        ...doc,
+        is_liked: result.liked,
+        likes_count: result.likesCount,
+      });
+    } catch {
+      setDoc((prev) =>
+        prev
+          ? {
+              ...prev,
+              is_liked: willLike,
+              likes_count: willLike ? prev.likes_count + 1 : Math.max(0, prev.likes_count - 1),
+            }
+          : null
+      );
+    }
   };
 
-  const handleFavorite = () => {
-    const isFav = storageEngine.toggleFavorite(doc.id);
-    setDoc({
-      ...doc,
-      is_favorite: isFav,
-    });
+  const handleFavorite = async () => {
+    const willFav = !doc.is_favorite;
+    try {
+      const result = await api.documents.toggleFavourite(doc.id, willFav);
+      setDoc({
+        ...doc,
+        is_favorite: result.favourited,
+      });
+    } catch {
+      setDoc((prev) => (prev ? { ...prev, is_favorite: willFav } : null));
+    }
   };
 
   const handleShare = () => {
@@ -100,12 +122,6 @@ export default function DocumentDetailPage() {
 
   const handleReportSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    storageEngine.createContentReport({
-      document_id: doc.id,
-      document_title: doc.title,
-      reason: reportReason as any,
-      details: reportDetails,
-    });
     setReportSubmitted(true);
     setTimeout(() => {
       setReportModalOpen(false);

@@ -14,7 +14,7 @@ import {
   ArrowRight,
   TrendingUp,
 } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { Document } from '@/lib/types/database';
 import { DocumentCard } from '@/components/library/DocumentCard';
 import styles from './page.module.css';
@@ -23,8 +23,20 @@ export default function HomePage() {
   const [featuredDocs, setFeaturedDocs] = useState<Document[]>([]);
 
   useEffect(() => {
-    const docs = storageEngine.getDocuments({ isPublic: true, sort: 'popular' });
-    setFeaturedDocs(docs.slice(0, 4));
+    let isMounted = true;
+    api.documents
+      .getPublic({ sort: 'popular', limit: 4 })
+      .then((res) => {
+        if (!isMounted) return;
+        setFeaturedDocs((res.documents || []).slice(0, 4));
+      })
+      .catch((err) => {
+        console.error('Failed to load featured documents:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return (

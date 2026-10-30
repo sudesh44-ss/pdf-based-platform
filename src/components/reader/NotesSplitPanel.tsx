@@ -15,7 +15,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { Note } from '@/lib/types/database';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { TiptapEditor } from '../notes/TiptapEditor';
 import styles from './NotesSplitPanel.module.css';
 
@@ -42,35 +42,40 @@ export function NotesSplitPanel({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const list = storageEngine.getNotes({ documentId });
-    setNotes(list);
-    if (list.length > 0) {
-      setActiveNote(list[0]);
-    } else {
-      // Create initial note linked to page 1
-      const newNote = storageEngine.saveNote({
-        document_id: documentId,
-        document_title: documentTitle,
-        page_number: currentPage,
-        title: `Notes on ${documentTitle} (p. ${currentPage})`,
-        content_html: `<p>Study notes for <strong>${documentTitle}</strong>, page ${currentPage}.</p>`,
+    let isMounted = true;
+    api.notes
+      .list({ document_id: documentId })
+      .then((res) => {
+        if (!isMounted) return;
+        const list = res.notes || [];
+        setNotes(list);
+        if (list.length > 0) {
+          setActiveNote(list[0]);
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching document notes:', err);
       });
-      setNotes([newNote]);
-      setActiveNote(newNote);
-    }
+
+    return () => {
+      isMounted = false;
+    };
   }, [documentId, documentTitle, currentPage]);
 
-  const handleCreateNote = () => {
-    const newNote = storageEngine.saveNote({
-      document_id: documentId,
-      document_title: documentTitle,
-      page_number: currentPage,
-      title: `Page ${currentPage} Note (${new Date().toLocaleDateString()})`,
-      content_html: `<p>New note attached to page ${currentPage}...</p>`,
-    });
-    setNotes([newNote, ...notes]);
-    setActiveNote(newNote);
-    setSaveStatus('saved');
+  const handleCreateNote = async () => {
+    try {
+      const newNote = await api.notes.create({
+        document_id: documentId,
+        page_number: currentPage,
+        title: `Page ${currentPage} Note (${new Date().toLocaleDateString()})`,
+        content_html: `<p>New note attached to page ${currentPage}...</p>`,
+      });
+      setNotes([newNote, ...notes]);
+      setActiveNote(newNote);
+      setSaveStatus('saved');
+    } catch (err: any) {
+      alert(err.message || 'Failed to create note');
+    }
   };
 
   const handleContentChange = (html: string, json: any) => {
@@ -83,36 +88,46 @@ export function NotesSplitPanel({
     }
 
     // Debounce auto-save by 800ms
-    saveTimeoutRef.current = setTimeout(() => {
+    saveTimeoutRef.current = setTimeout(async () => {
       try {
-        const updated = storageEngine.saveNote({
-          ...activeNote,
+        const updated = await api.notes.update(activeNote.id, {
           content_html: html,
           content_json: json,
         });
         setActiveNote(updated);
+        setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
         setSaveStatus('saved');
       } catch (err) {
-        setSaveStatus(navigator.onLine ? 'failed' : 'offline');
+        setSaveStatus('failed');
       }
     }, 800);
   };
 
   const handleTitleChange = (newTitle: string) => {
     if (!activeNote) return;
-    const updated = storageEngine.saveNote({
-      ...activeNote,
-      title: newTitle,
-    });
+    const updated = { ...activeNote, title: newTitle };
     setActiveNote(updated);
     setNotes(notes.map((n) => (n.id === updated.id ? updated : n)));
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await api.notes.update(activeNote.id, { title: newTitle });
+      } catch {
+        // Ignore
+      }
+    }, 800);
   };
 
-  const handleDeleteNote = (id: string) => {
-    storageEngine.deleteNote(id);
-    const remaining = notes.filter((n) => n.id !== id);
-    setNotes(remaining);
-    setActiveNote(remaining.length > 0 ? remaining[0] : null);
+  const handleDeleteNote = async (id: string) => {
+    try {
+      await api.notes.delete(id);
+      const remaining = notes.filter((n) => n.id !== id);
+      setNotes(remaining);
+      setActiveNote(remaining.length > 0 ? remaining[0] : null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete note');
+    }
   };
 
   const handleExportMarkdown = () => {

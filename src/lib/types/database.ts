@@ -205,3 +205,79 @@ export interface ContentReport {
   resolution_notes: string | null;
   created_at: string;
 }
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  color: string;
+  icon: string;
+  is_visible: boolean;
+  created_at: string;
+  updated_at: string;
+  document_count?: number;
+}
+
+export type TelegramUploadStatus =
+  | 'received'
+  | 'validating'
+  | 'pending'
+  | 'under_review'
+  | 'approved'
+  | 'rejected'
+  | 'published'
+  | 'unpublished'
+  | 'processing_failed';
+
+export interface TelegramUpload {
+  id: string;
+  telegram_file_id: string;
+  telegram_file_unique_id: string;
+  telegram_chat_id: number;
+  telegram_message_id: number;
+  original_filename: string;
+  mime_type: string;
+  file_size: number;
+  file_hash: string | null;
+  title: string;
+  description: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  tags: string[];
+  author: string | null;
+  language: string;
+  publication_year: number | null;
+  thumbnail_url: string | null;
+  status: TelegramUploadStatus;
+  rejection_reason: string | null;
+  uploaded_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  published_at: string | null;
+  document_id: string | null;
+  metadata: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminSession {
+  id: string;
+  token_hash: string;
+  username: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+}
+
+export interface AdminActivityLog {
+  id: string;
+  admin_username: string;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  details: Record<string, any>;
+  created_at: string;
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   BookMarked,
@@ -10,8 +10,10 @@ import {
   X,
   FileText,
   Star,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { Notebook } from '@/lib/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 
@@ -21,23 +23,55 @@ export default function NotebooksPage() {
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newColor, setNewColor] = useState('#8b5cf6');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const reload = () => {
-    setNotebooks(storageEngine.getNotebooks());
-  };
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.notebooks.list();
+      setNotebooks(res.notebooks || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load notebooks');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newTitle.trim()) {
-      storageEngine.createNotebook(newTitle.trim(), newDesc.trim(), newColor);
-      setNewTitle('');
-      setNewDesc('');
-      setIsModalOpen(false);
-      reload();
+      try {
+        await api.notebooks.create({
+          title: newTitle.trim(),
+          description: newDesc.trim(),
+          color: newColor,
+        });
+        setNewTitle('');
+        setNewDesc('');
+        setIsModalOpen(false);
+        await reload();
+      } catch (err: any) {
+        alert(err.message || 'Failed to create notebook');
+      }
+    }
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (confirm('Delete this notebook? Notes inside will be preserved as unassigned.')) {
+      try {
+        await api.notebooks.delete(id);
+        await reload();
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete notebook');
+      }
     }
   };
 
@@ -74,55 +108,86 @@ export default function NotebooksPage() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-          {notebooks.map((nb) => (
-            <div
-              key={nb.id}
-              style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-lg)',
-                padding: '1.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.85rem',
-                borderTop: `4px solid ${nb.color}`,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Created on {new Date(nb.created_at).toLocaleDateString()}
-                </span>
-                {nb.is_favorite && <Star size={15} fill="#f59e0b" color="#f59e0b" />}
+        {error && (
+          <div style={{ padding: '0.85rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-danger)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Loader2 size={28} className="animate-spin" style={{ margin: '0 auto 0.5rem' }} />
+            <p>Loading notebooks...</p>
+          </div>
+        ) : notebooks.length === 0 ? (
+          <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', color: 'var(--text-muted)' }}>
+            <BookMarked size={40} style={{ margin: '0 auto 1rem', display: 'block' }} />
+            <h3>No Notebooks Found</h3>
+            <p style={{ marginTop: '0.5rem' }}>Click &quot;Create Notebook&quot; above to start categorizing your engineering notes.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+            {notebooks.map((nb) => (
+              <div
+                key={nb.id}
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.85rem',
+                  borderTop: `4px solid ${nb.color}`,
+                  position: 'relative',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Created on {new Date(nb.created_at).toLocaleDateString()}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {nb.is_favorite && <Star size={15} fill="#f59e0b" color="#f59e0b" />}
+                    <button
+                      type="button"
+                      onClick={(e) => handleDelete(nb.id, e)}
+                      title="Delete notebook"
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem' }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{nb.title}</h2>
+                {nb.description && (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {nb.description}
+                  </p>
+                )}
+
+                <div style={{ marginTop: 'auto', paddingTop: '0.85rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <FileText size={14} />
+                    <span>{nb.note_count || 0} entries</span>
+                  </span>
+
+                  <Link
+                    href={`/notes?notebook_id=${nb.id}`}
+                    style={{
+                      fontSize: '0.825rem',
+                      color: 'var(--accent-primary)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Open Notebook &rarr;
+                  </Link>
+                </div>
               </div>
-
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{nb.title}</h2>
-              {nb.description && (
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  {nb.description}
-                </p>
-              )}
-
-              <div style={{ marginTop: 'auto', paddingTop: '0.85rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <FileText size={14} />
-                  <span>{nb.note_count || 0} entries</span>
-                </span>
-
-                <Link
-                  href="/notes"
-                  style={{
-                    fontSize: '0.825rem',
-                    color: 'var(--accent-primary)',
-                    fontWeight: 600,
-                  }}
-                >
-                  Open Notebook &rarr;
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Create Modal */}
         {isModalOpen && (

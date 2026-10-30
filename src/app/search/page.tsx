@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -11,7 +11,7 @@ import {
   ArrowRight,
   Info,
 } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { Document } from '@/lib/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 
@@ -22,67 +22,34 @@ interface SearchResultMatch {
   isOcr: boolean;
 }
 
-export default function SearchPage() {
+function SearchContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResultMatch[]>([]);
   const [searched, setSearched] = useState(false);
 
-  const performSearch = (q: string) => {
+  const performSearch = async (q: string) => {
     if (!q.trim()) {
       setResults([]);
       setSearched(false);
       return;
     }
 
-    const lower = q.toLowerCase();
-    const docs = storageEngine.getDocuments({ isPublic: true });
-    const matches: SearchResultMatch[] = [];
-
-    // Simulated OCR & Native text index
-    const ocrCorpus: Record<string, { page: number; text: string }[]> = {
-      'doc-dist-sys-01': [
-        { page: 1, text: 'Distributed systems are composed of autonomous computing entities that communicate over asynchronous networks. CAP Theorem consistency and availability.' },
-        { page: 2, text: 'A Raft cluster consists of several servers; typically 5, allowing the system to tolerate 2 failures. Leader election invariants and AppendEntries RPCs.' },
-        { page: 3, text: 'Distributed Lock implementation in TypeScript. Lease management and fencing tokens to prevent split-brain execution.' },
-        { page: 4, text: 'The Saga pattern breaks a distributed transaction into a sequence of local transactions with compensating undo actions.' },
-        { page: 5, text: 'Decentralized document archiving using Telegram Cloud Bot API tier with SHA-256 cryptographic verification.' },
-      ],
-      'doc-react-ts-02': [
-        { page: 1, text: 'React concurrent mode and fiber tree reconciliation algorithms with prioritized lanes.' },
-        { page: 2, text: 'Dual-buffering architecture: current tree vs workInProgress tree in memory.' },
-        { page: 3, text: 'Lane priority bitmasks and scheduling cooperative multitasking.' },
-      ],
-    };
-
-    docs.forEach((doc) => {
-      // 1. Check title and description
-      if (doc.title.toLowerCase().includes(lower) || (doc.description && doc.description.toLowerCase().includes(lower))) {
-        matches.push({
-          doc,
-          pageNumber: 1,
-          snippet: doc.description || doc.title,
-          isOcr: false,
-        });
-      }
-
-      // 2. Check OCR index
-      const pages = ocrCorpus[doc.id] || [];
-      pages.forEach((p) => {
-        if (p.text.toLowerCase().includes(lower)) {
-          matches.push({
-            doc,
-            pageNumber: p.page,
-            snippet: p.text,
-            isOcr: true,
-          });
-        }
-      });
-    });
-
-    setResults(matches);
-    setSearched(true);
+    try {
+      const res = await api.documents.getPublic({ q: q.trim(), limit: 50 });
+      const docs = res.documents || [];
+      const matches: SearchResultMatch[] = docs.map((doc) => ({
+        doc,
+        pageNumber: 1,
+        snippet: doc.description || doc.title,
+        isOcr: false,
+      }));
+      setResults(matches);
+      setSearched(true);
+    } catch (err) {
+      console.error('Search error:', err);
+    }
   };
 
   useEffect(() => {
@@ -247,5 +214,19 @@ export default function SearchPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ display: 'flex', minHeight: 'calc(100vh - var(--header-height))', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+          <span>Loading search...</span>
+        </div>
+      }
+    >
+      <SearchContent />
+    </Suspense>
   );
 }

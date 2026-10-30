@@ -1,338 +1,318 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Shield,
+  Files,
+  UploadCloud,
+  Clock,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
-  HardDrive,
-  RefreshCw,
-  FileText,
-  Trash2,
-  User,
-  ExternalLink,
+  FolderTree,
+  History,
+  ArrowRight,
+  Loader2,
+  AlertCircle,
+  Eye,
+  FileCheck,
 } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
-import { ContributionSubmission, ContentReport, BackupJob, Document } from '@/lib/types/database';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 
-export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'submissions' | 'reports' | 'backups' | 'stats'>('submissions');
-  const [submissions, setSubmissions] = useState<ContributionSubmission[]>([]);
-  const [reports, setReports] = useState<ContentReport[]>([]);
-  const [jobs, setJobs] = useState<BackupJob[]>([]);
-  const [documents, setDocuments] = useState<Document[]>([]);
+export default function AdminDashboardPage() {
+  const [metrics, setMetrics] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const reloadData = () => {
-    setSubmissions(storageEngine.getSubmissions());
-    setReports(storageEngine.getContentReports());
-    setJobs(storageEngine.getBackupJobs());
-    setDocuments(storageEngine.getDocuments());
+  const fetchMetrics = () => {
+    setLoading(true);
+    setError(null);
+    fetch('/api/admin/dashboard')
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        const data = await res.json();
+        setMetrics(data.data);
+      })
+      .catch((err) => {
+        setError(err.message || 'Failed to load dashboard metrics');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   useEffect(() => {
-    reloadData();
+    fetchMetrics();
   }, []);
 
-  const handleReviewSubmission = (id: string, action: 'approve' | 'reject') => {
-    const reason = action === 'reject' ? prompt('Enter reason for rejection:') || 'Content quality standards' : undefined;
-    storageEngine.reviewSubmission(id, action, reason);
-    reloadData();
-  };
-
-  const handleResolveReport = (id: string) => {
-    const notes = prompt('Enter resolution notes:') || 'Reviewed by moderator and resolved.';
-    // Update report
-    reloadData();
+  const formatTime = (isoString: string) => {
+    try {
+      return new Date(isoString).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return isoString;
+    }
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: 'calc(100vh - var(--header-height))', width: '100%' }}>
-      <Sidebar />
-
-      <main style={{ flex: 1, padding: '2.5rem', maxWidth: '1200px', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+    <AdminLayout>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Shield size={24} color="var(--accent-secondary)" />
-              <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                Protected Administration Portal
-              </h1>
-            </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '0.25rem' }}>
-              Role-verified administrative moderation, copyright claims resolution, and Telegram cloud backup operations.
+            <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              Administration &amp; Workflow Overview
+            </h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.925rem', marginTop: '0.35rem' }}>
+              Real-time Telegram uploads, approval queue status, and public catalog metrics.
             </p>
           </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <Link
+              href="/admin/pending"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.65rem 1.15rem',
+                background: 'var(--accent-primary)',
+                color: '#fff',
+                borderRadius: 'var(--radius-md)',
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                textDecoration: 'none',
+              }}
+            >
+              <Clock size={16} />
+              <span>Open Review Queue</span>
+            </Link>
+          </div>
         </div>
 
-        {/* Tab switcher */}
-        <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('submissions')}
+        {error && (
+          <div
             style={{
-              padding: '0.5rem 1rem',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 600,
-              fontSize: '0.875rem',
-              background: activeTab === 'submissions' ? 'var(--accent-primary-light)' : 'transparent',
-              color: activeTab === 'submissions' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              border: 'none',
-              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '1rem',
+              background: 'rgba(239, 68, 68, 0.1)',
+              borderRadius: 'var(--radius-md)',
+              color: '#ef4444',
             }}
           >
-            Submissions Queue ({submissions.filter((s) => s.status === 'pending_review').length})
-          </button>
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+        )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('reports')}
+        {/* Stats Grid */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '1.25rem',
+          }}
+        >
+          <div
             style={{
-              padding: '0.5rem 1rem',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 600,
-              fontSize: '0.875rem',
-              background: activeTab === 'reports' ? 'var(--accent-primary-light)' : 'transparent',
-              color: activeTab === 'reports' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              border: 'none',
-              cursor: 'pointer',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-medium)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
             }}
           >
-            Content &amp; DMCA Reports ({reports.length})
-          </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                PENDING UPLOADS
+              </span>
+              <div style={{ padding: '0.4rem', background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', borderRadius: '6px' }}>
+                <Clock size={18} />
+              </div>
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              {loading ? <Loader2 className="animate-spin" size={24} /> : metrics?.pendingUploads || 0}
+            </div>
+            <Link href="/admin/pending" style={{ fontSize: '0.8rem', color: '#f59e0b', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+              Review awaiting items &rarr;
+            </Link>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('backups')}
+          <div
             style={{
-              padding: '0.5rem 1rem',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 600,
-              fontSize: '0.875rem',
-              background: activeTab === 'backups' ? 'var(--accent-primary-light)' : 'transparent',
-              color: activeTab === 'backups' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              border: 'none',
-              cursor: 'pointer',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-medium)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
             }}
           >
-            Storage &amp; Backup Jobs ({jobs.length})
-          </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                PUBLISHED DOCUMENTS
+              </span>
+              <div style={{ padding: '0.4rem', background: 'rgba(34, 197, 94, 0.12)', color: '#22c55e', borderRadius: '6px' }}>
+                <CheckCircle2 size={18} />
+              </div>
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              {loading ? <Loader2 className="animate-spin" size={24} /> : metrics?.publishedDocuments || 0}
+            </div>
+            <Link href="/admin/published" style={{ fontSize: '0.8rem', color: '#22c55e', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+              View public catalog &rarr;
+            </Link>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('stats')}
+          <div
             style={{
-              padding: '0.5rem 1rem',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 600,
-              fontSize: '0.875rem',
-              background: activeTab === 'stats' ? 'var(--accent-primary-light)' : 'transparent',
-              color: activeTab === 'stats' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              border: 'none',
-              cursor: 'pointer',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-medium)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
             }}
           >
-            System Metrics
-          </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                REJECTED UPLOADS
+              </span>
+              <div style={{ padding: '0.4rem', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', borderRadius: '6px' }}>
+                <XCircle size={18} />
+              </div>
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              {loading ? <Loader2 className="animate-spin" size={24} /> : metrics?.rejectedUploads || 0}
+            </div>
+            <Link href="/admin/rejected" style={{ fontSize: '0.8rem', color: '#ef4444', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+              View rejection reasons &rarr;
+            </Link>
+          </div>
+
+          <div
+            style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-medium)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                CATEGORIES ACTIVE
+              </span>
+              <div style={{ padding: '0.4rem', background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', borderRadius: '6px' }}>
+                <FolderTree size={18} />
+              </div>
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              {loading ? <Loader2 className="animate-spin" size={24} /> : metrics?.totalCategories || 0}
+            </div>
+            <Link href="/admin/categories" style={{ fontSize: '0.8rem', color: '#3b82f6', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+              Manage taxonomy &rarr;
+            </Link>
+          </div>
         </div>
 
-        {/* Tab 1: Submissions Queue */}
-        {activeTab === 'submissions' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {submissions.map((sub) => (
-              <div
-                key={sub.id}
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '1.25rem',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{sub.title}</h3>
-                    <span
-                      style={{
-                        fontSize: '0.72rem',
-                        padding: '0.15rem 0.5rem',
-                        borderRadius: 'var(--radius-full)',
-                        background: sub.status === 'published' ? 'var(--accent-success-light)' : sub.status === 'rejected' ? 'var(--accent-danger-light)' : 'var(--accent-warning-light)',
-                        color: sub.status === 'published' ? 'var(--accent-success)' : sub.status === 'rejected' ? 'var(--accent-danger)' : 'var(--accent-warning)',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {sub.status.toUpperCase()}
-                    </span>
-                  </div>
-
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0.35rem 0' }}>
-                    {sub.description || 'No description provided.'}
-                  </p>
-
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    File: {sub.file_name} ({(sub.file_size / (1024 * 1024)).toFixed(1)} MB) &bull; Submitted: {new Date(sub.created_at).toLocaleString()}
-                  </div>
-                </div>
-
-                {sub.status === 'pending_review' && (
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleReviewSubmission(sub.id, 'approve')}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        padding: '0.5rem 1rem',
-                        background: 'var(--accent-success)',
-                        color: '#fff',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <CheckCircle2 size={15} />
-                      <span>Approve &amp; Publish</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleReviewSubmission(sub.id, 'reject')}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        padding: '0.5rem 1rem',
-                        background: 'var(--bg-tertiary)',
-                        border: '1px solid var(--border-medium)',
-                        color: 'var(--accent-danger)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <XCircle size={15} />
-                      <span>Reject</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
+        {/* Recent Admin Activity Table */}
+        <div
+          style={{
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-medium)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '1.75rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <History size={18} />
+              <span>Recent Administrative Activities</span>
+            </h2>
+            <Link href="/admin/activity-logs" style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
+              Full Audit Trail &rarr;
+            </Link>
           </div>
-        )}
 
-        {/* Tab 2: Content Reports */}
-        {activeTab === 'reports' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {reports.map((rep) => (
-              <div
-                key={rep.id}
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '1rem',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <AlertTriangle size={16} color="var(--accent-warning)" />
-                    <strong style={{ color: 'var(--text-primary)' }}>
-                      {rep.document_title || 'Document'} &bull; Reason: {rep.reason.toUpperCase()}
-                    </strong>
-                    <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-full)', color: 'var(--text-muted)' }}>
-                      {rep.status}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                    {rep.details || 'No additional details provided by reporter.'}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleResolveReport(rep.id)}
-                  style={{
-                    padding: '0.45rem 0.85rem',
-                    background: 'var(--accent-primary)',
-                    color: '#fff',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Mark Resolved
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Tab 3: Backups */}
-        {activeTab === 'backups' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {jobs.map((job) => (
-              <div
-                key={job.id}
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div>
-                  <strong style={{ color: 'var(--text-primary)' }}>Telegram Cloud Job #{job.id}</strong>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Destination: {job.destination.toUpperCase()} &bull; Total Items: {job.total_items}
-                  </div>
-                </div>
-                <span style={{ color: 'var(--accent-success)', fontSize: '0.85rem', fontWeight: 600 }}>
-                  COMPLETED &bull; Verified
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Tab 4: System Metrics */}
-        {activeTab === 'stats' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.5rem' }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Documents in Catalog</div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{documents.length}</div>
+          {loading ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 0.5rem' }} />
+              <p>Fetching activity logs...</p>
             </div>
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.5rem' }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Moderation Approvals</div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--accent-success)' }}>100%</div>
+          ) : !metrics?.recentActivities || metrics.recentActivities.length === 0 ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              No administrative events recorded yet.
             </div>
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.5rem' }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Telegram Cloud Health</div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--accent-primary)' }}>Operational</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-medium)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>Admin / Source</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>Action</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>Target</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {metrics.recentActivities.map((act: any) => (
+                    <tr key={act.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {act.admin_username}
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <span
+                          style={{
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            background:
+                              act.action.includes('approved')
+                                ? 'rgba(34, 197, 94, 0.12)'
+                                : act.action.includes('rejected')
+                                ? 'rgba(239, 68, 68, 0.12)'
+                                : 'var(--bg-tertiary)',
+                            color:
+                              act.action.includes('approved')
+                                ? '#22c55e'
+                                : act.action.includes('rejected')
+                                ? '#ef4444'
+                                : 'var(--text-secondary)',
+                          }}
+                        >
+                          {act.action}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-muted)' }}>
+                        {act.target_type ? `${act.target_type} (${act.target_id?.slice(0, 8) || 'N/A'})` : 'System'}
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-muted)' }}>
+                        {formatTime(act.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-        )}
-      </main>
-    </div>
+          )}
+        </div>
+      </div>
+    </AdminLayout>
   );
 }

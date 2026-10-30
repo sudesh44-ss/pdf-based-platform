@@ -13,7 +13,7 @@ import {
   Server,
   Info,
 } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { BackupJob, Document } from '@/lib/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 
@@ -24,10 +24,14 @@ export default function StoragePage() {
   const [backingUp, setBackingUp] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
 
-  const reload = () => {
-    setJobs(storageEngine.getBackupJobs());
-    const docs = storageEngine.getDocuments();
-    setDocuments(docs.filter((d) => !d.is_trash));
+  const reload = async () => {
+    try {
+      const res = await api.documents.getMine({ limit: 100 });
+      const docs = res.documents || [];
+      setDocuments(docs.filter((d) => !d.is_trash));
+    } catch (err) {
+      console.error('Error fetching documents for backup:', err);
+    }
   };
 
   useEffect(() => {
@@ -55,14 +59,13 @@ export default function StoragePage() {
     setBackingUp(true);
 
     try {
-      // Simulate real Telegram upload batch
-      setTimeout(() => {
-        storageEngine.createBackupJob(selectedDocIds.length, 'telegram');
-        setBackingUp(false);
-        setSelectedDocIds([]);
-        reload();
-      }, 1200);
-    } catch {
+      const job = await api.telegram.backup(selectedDocIds, 'telegram');
+      setJobs((prev) => [job, ...prev]);
+      setBackingUp(false);
+      setSelectedDocIds([]);
+      await reload();
+    } catch (err: any) {
+      alert(err.message || 'Failed to trigger backup');
       setBackingUp(false);
     }
   };

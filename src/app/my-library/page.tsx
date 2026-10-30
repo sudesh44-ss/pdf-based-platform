@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   UploadCloud,
@@ -13,8 +13,9 @@ import {
   BookOpen,
   Check,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { Document, Folder } from '@/lib/types/database';
 import { validatePdfBuffer } from '@/lib/pdf/validator';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -26,6 +27,8 @@ export default function MyLibraryPage() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [trashDocs, setTrashDocs] = useState<Document[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'favorites' | 'folders' | 'trash'>('all');
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Upload modal state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -43,16 +46,29 @@ export default function MyLibraryPage() {
   const [newFolderName, setNewFolderName] = useState('');
   const [folderModalOpen, setFolderModalOpen] = useState(false);
 
-  const reloadData = () => {
-    const docs = storageEngine.getDocuments();
-    setDocuments(docs.filter((d) => !d.is_trash));
-    setTrashDocs(docs.filter((d) => d.is_trash));
-    setFolders(storageEngine.getFolders());
-  };
+  const reloadData = useCallback(async () => {
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      const [docsRes, foldersRes] = await Promise.all([
+        api.documents.getMine({ limit: 100 }),
+        api.folders.list(),
+      ]);
+
+      const allDocs = docsRes.documents || [];
+      setDocuments(allDocs.filter((d) => !d.is_trash));
+      setTrashDocs(allDocs.filter((d) => d.is_trash));
+      setFolders(foldersRes.folders || []);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to load library items.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     reloadData();
-  }, []);
+  }, [reloadData]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setValidationError(null);
@@ -64,7 +80,6 @@ export default function MyLibraryPage() {
       setDocTitle(file.name.replace(/\.pdf$/i, '').replace(/[-_]/g, ' '));
     }
 
-    // Client-side binary validation using %PDF- magic bytes
     try {
       const buffer = await file.arrayBuffer();
       const validation = validatePdfBuffer(new Uint8Array(buffer));
@@ -88,6 +103,7 @@ export default function MyLibraryPage() {
     }
 
     setUploading(true);
+    setValidationError(null);
 
     try {
       const buffer = await selectedFile.arrayBuffer();
@@ -99,20 +115,16 @@ export default function MyLibraryPage() {
         return;
       }
 
-      // Create new document in storageEngine
-      storageEngine.createDocument({
-        title: docTitle.trim() || selectedFile.name,
-        description: docDescription.trim(),
-        file_name: selectedFile.name,
-        file_size: selectedFile.size,
-        page_count: validation.pageCount || 1,
-        categories: docCategories.split(',').map((c) => c.trim()).filter(Boolean),
-        tags: docTags.split(',').map((t) => t.trim()).filter(Boolean),
-        is_public: isPublic,
-        storage_type: 'telegram',
-        storage_file_path: '/samples/sample-study-guide.pdf',
-        contributor_name: 'You',
-      });
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('title', docTitle.trim() || selectedFile.name);
+      formData.append('description', docDescription.trim());
+      formData.append('categories', docCategories);
+      formData.append('tags', docTags);
+      formData.append('is_public', String(isPublic));
+      formData.append('rights_declared', String(rightsDeclared));
+
+      await api.documents.upload(formData);
 
       setUploading(false);
       setUploadModalOpen(false);
@@ -120,43 +132,60 @@ export default function MyLibraryPage() {
       setDocTitle('');
       setDocDescription('');
       setRightsDeclared(false);
-      reloadData();
+      await reloadData();
     } catch (err: any) {
       setValidationError(err.message || 'Error processing PDF upload.');
       setUploading(false);
     }
   };
 
-  const handleCreateFolder = (e: React.FormEvent) => {
+  const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newFolderName.trim()) {
-      storageEngine.createFolder(newFolderName.trim());
-      setNewFolderName('');
-      setFolderModalOpen(false);
-      reloadData();
+      try {
+        await api.folders.create({ name: newFolderName.trim() });
+        setNewFolderName('');
+        setFolderModalOpen(false);
+        await reloadData();
+      } catch (err: any) {
+        alert(err.message || 'Failed to create folder');
+      }
     }
   };
 
-  const handleTrashDocument = (id: string) => {
-    storageEngine.toggleTrash(id, true);
-    reloadData();
+  const handleTrashDocument = async (id: string) => {
+    try {
+      await api.documents.delete(id, false);
+      await reloadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to move document to trash');
+    }
   };
 
-  const handleRestoreDocument = (id: string) => {
-    storageEngine.toggleTrash(id, false);
-    reloadData();
+  const handleRestoreDocument = async (id: string) => {
+    try {
+      await api.documents.update(id, { is_trash: false });
+      await reloadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to restore document');
+    }
   };
 
-  const handleDeletePermanently = (id: string) => {
+  const handleDeletePermanently = async (id: string) => {
     if (confirm('Permanently delete this PDF document? This action cannot be undone.')) {
-      storageEngine.deleteDocumentPermanently(id);
-      reloadData();
+      try {
+        await api.documents.delete(id, true);
+        await reloadData();
+      } catch (err: any) {
+        alert(err.message || 'Failed to permanently delete document');
+      }
     }
   };
 
-  const displayedDocs = activeTab === 'favorites'
-    ? documents.filter((d) => d.is_favorite)
-    : documents;
+  const displayedDocs =
+    activeTab === 'favorites'
+      ? documents.filter((d) => d.is_favorite)
+      : documents;
 
   return (
     <div className={styles.container}>
@@ -190,6 +219,13 @@ export default function MyLibraryPage() {
             </button>
           </div>
         </div>
+
+        {errorMessage && (
+          <div style={{ padding: '0.85rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-danger)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertCircle size={18} />
+            <span>{errorMessage}</span>
+          </div>
+        )}
 
         {/* Navigation Tabs */}
         <div className={styles.tabBar} role="tablist">
@@ -231,8 +267,12 @@ export default function MyLibraryPage() {
           </button>
         </div>
 
-        {/* Content View */}
-        {activeTab === 'trash' ? (
+        {loading ? (
+          <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Loader2 size={28} className="animate-spin" style={{ margin: '0 auto 0.5rem' }} />
+            <p>Loading your PDF documents...</p>
+          </div>
+        ) : activeTab === 'trash' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {trashDocs.length === 0 ? (
               <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -294,55 +334,69 @@ export default function MyLibraryPage() {
           </div>
         ) : activeTab === 'folders' ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1.25rem' }}>
-            {folders.map((folder) => (
-              <div
-                key={folder.id}
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-lg)',
-                  padding: '1.5rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.5rem',
-                }}
-              >
-                <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-sm)', background: `${folder.color}20`, color: folder.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FolderPlus size={18} />
-                </div>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>{folder.name}</h3>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{folder.document_count || 0} documents</span>
+            {folders.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                No folders created yet. Click &quot;New Folder&quot; above to organize your documents.
               </div>
-            ))}
+            ) : (
+              folders.map((folder) => (
+                <div
+                  key={folder.id}
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '1.5rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-sm)', background: `${folder.color}20`, color: folder.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <FolderPlus size={18} />
+                  </div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>{folder.name}</h3>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{folder.document_count || 0} documents</span>
+                </div>
+              ))
+            )}
           </div>
         ) : (
           <div className={styles.docsGrid}>
-            {displayedDocs.map((doc) => (
-              <div key={doc.id} style={{ position: 'relative' }}>
-                <DocumentCard document={doc} />
-                <button
-                  type="button"
-                  onClick={() => handleTrashDocument(doc.id)}
-                  style={{
-                    position: 'absolute',
-                    top: '0.75rem',
-                    right: '0.75rem',
-                    background: 'rgba(15, 23, 42, 0.75)',
-                    backdropFilter: 'blur(4px)',
-                    border: '1px solid var(--border-medium)',
-                    borderRadius: 'var(--radius-xs)',
-                    color: 'var(--text-muted)',
-                    padding: '0.25rem 0.45rem',
-                    cursor: 'pointer',
-                    zIndex: 10,
-                  }}
-                  title="Move to Trash"
-                  aria-label="Move document to trash"
-                >
-                  <Trash2 size={13} />
-                </button>
+            {displayedDocs.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', padding: '4rem 2rem', textAlign: 'center', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', color: 'var(--text-muted)' }}>
+                <UploadCloud size={40} style={{ margin: '0 auto 1rem', display: 'block' }} />
+                <h3>No Documents Found</h3>
+                <p style={{ marginTop: '0.5rem' }}>Click &quot;Upload PDF&quot; above to add technical materials to your library.</p>
               </div>
-            ))}
+            ) : (
+              displayedDocs.map((doc) => (
+                <div key={doc.id} style={{ position: 'relative' }}>
+                  <DocumentCard document={doc} />
+                  <button
+                    type="button"
+                    onClick={() => handleTrashDocument(doc.id)}
+                    style={{
+                      position: 'absolute',
+                      top: '0.75rem',
+                      right: '0.75rem',
+                      background: 'rgba(15, 23, 42, 0.75)',
+                      backdropFilter: 'blur(4px)',
+                      border: '1px solid var(--border-medium)',
+                      borderRadius: 'var(--radius-xs)',
+                      color: 'var(--text-muted)',
+                      padding: '0.25rem 0.45rem',
+                      cursor: 'pointer',
+                      zIndex: 10,
+                    }}
+                    title="Move to Trash"
+                    aria-label="Move document to trash"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         )}
 

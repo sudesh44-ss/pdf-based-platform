@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import {
   FileText,
@@ -13,8 +13,9 @@ import {
   CheckCircle,
   Clock,
   Bookmark,
+  Loader2,
 } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { Note } from '@/lib/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TiptapEditor } from '@/components/notes/TiptapEditor';
@@ -25,54 +26,93 @@ export default function NotesPage() {
   const [activeNote, setActiveNote] = useState<Note | null>(null);
   const [search, setSearch] = useState('');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
+  const [loading, setLoading] = useState(true);
 
-  const reloadNotes = () => {
-    const list = storageEngine.getNotes({ search });
-    setNotes(list);
-    if (!activeNote && list.length > 0) {
-      setActiveNote(list[0]);
+  const debounceTimerRef = useRef<any>(null);
+
+  const reloadNotes = useCallback(async () => {
+    try {
+      const res = await api.notes.list({ q: search });
+      const list = res.notes || [];
+      setNotes(list);
+      setActiveNote((prev) => {
+        if (!prev && list.length > 0) return list[0];
+        if (prev) {
+          const found = list.find((n) => n.id === prev.id);
+          return found || (list.length > 0 ? list[0] : null);
+        }
+        return null;
+      });
+    } catch (err) {
+      console.error('Error loading notes:', err);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [search]);
 
   useEffect(() => {
     reloadNotes();
-  }, [search]);
+  }, [reloadNotes]);
 
-  const handleCreateNote = () => {
-    const newNote = storageEngine.saveNote({
-      title: 'New Study Note',
-      content_html: '<p>Start typing technical notes, architecture patterns, or snippets...</p>',
-    });
-    setNotes([newNote, ...notes]);
-    setActiveNote(newNote);
+  const handleCreateNote = async () => {
+    try {
+      const newNote = await api.notes.create({
+        title: 'New Study Note',
+        content_html: '<p>Start typing technical notes, architecture patterns, or snippets...</p>',
+      });
+      setNotes([newNote, ...notes]);
+      setActiveNote(newNote);
+    } catch (err: any) {
+      alert(err.message || 'Failed to create note');
+    }
   };
 
   const handleTitleChange = (newTitle: string) => {
     if (!activeNote) return;
-    const updated = storageEngine.saveNote({ ...activeNote, title: newTitle });
+    const updated = { ...activeNote, title: newTitle };
     setActiveNote(updated);
     setNotes(notes.map((n) => (n.id === updated.id ? updated : n)));
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        await api.notes.update(activeNote.id, { title: newTitle });
+      } catch (err) {
+        console.error('Error auto-saving note title:', err);
+      }
+    }, 600);
   };
 
   const handleContentChange = (html: string, json: any) => {
     if (!activeNote) return;
     setSaveStatus('saving');
-    setTimeout(() => {
-      const updated = storageEngine.saveNote({
-        ...activeNote,
-        content_html: html,
-        content_json: json,
-      });
-      setActiveNote(updated);
-      setSaveStatus('saved');
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        const updated = await api.notes.update(activeNote.id, {
+          content_html: html,
+          content_json: json,
+        });
+        setActiveNote(updated);
+        setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+        setSaveStatus('saved');
+      } catch (err) {
+        console.error('Error saving note content:', err);
+        setSaveStatus('saved');
+      }
     }, 600);
   };
 
-  const handleDeleteNote = (id: string) => {
-    storageEngine.deleteNote(id);
-    const remaining = notes.filter((n) => n.id !== id);
-    setNotes(remaining);
-    setActiveNote(remaining.length > 0 ? remaining[0] : null);
+  const handleDeleteNote = async (id: string) => {
+    try {
+      await api.notes.delete(id);
+      const remaining = notes.filter((n) => n.id !== id);
+      setNotes(remaining);
+      setActiveNote(remaining.length > 0 ? remaining[0] : null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete note');
+    }
   };
 
   const handleExportMarkdown = () => {
@@ -126,25 +166,36 @@ export default function NotesPage() {
             />
           </div>
 
-          <div className={styles.notesList}>
-            {notes.map((n) => (
-              <button
-                key={n.id}
-                type="button"
-                className={`${styles.noteCard} ${activeNote?.id === n.id ? styles.noteCardActive : ''}`}
-                onClick={() => setActiveNote(n)}
-              >
-                <div className={styles.noteCardTitle}>{n.title}</div>
-                <div className={styles.noteCardSnippet}>
-                  {n.content_html.replace(/<[^>]+>/g, ' ') || 'Empty note...'}
-                </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{new Date(n.updated_at).toLocaleDateString()}</span>
-                  {n.page_number && <span>Page {n.page_number}</span>}
-                </div>
-              </button>
-            ))}
-          </div>
+          {loading ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <Loader2 size={20} className="animate-spin" style={{ margin: '0 auto 0.5rem' }} />
+              <span>Loading notes...</span>
+            </div>
+          ) : notes.length === 0 ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              No notes found. Click &quot;New Note&quot; to begin.
+            </div>
+          ) : (
+            <div className={styles.notesList}>
+              {notes.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  className={`${styles.noteCard} ${activeNote?.id === n.id ? styles.noteCardActive : ''}`}
+                  onClick={() => setActiveNote(n)}
+                >
+                  <div className={styles.noteCardTitle}>{n.title}</div>
+                  <div className={styles.noteCardSnippet}>
+                    {n.content_html.replace(/<[^>]+>/g, ' ') || 'Empty note...'}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{new Date(n.updated_at).toLocaleDateString()}</span>
+                    {n.page_number && <span>Page {n.page_number}</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Right Editor Area */}

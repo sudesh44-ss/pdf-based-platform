@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { BarChart3, Clock, BookOpen, Layers, CheckCircle2, TrendingUp, Info } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { api } from '@/lib/api/client';
 import { ReadingProgress, Document } from '@/lib/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 
@@ -12,27 +12,33 @@ export default function StatisticsPage() {
   const [totalPagesRead, setTotalPagesRead] = useState(0);
 
   useEffect(() => {
-    const allProgress = storageEngine.getAllReadingProgress();
-    const docs = storageEngine.getDocuments();
+    let isMounted = true;
+    api.readingProgress.list().then((res) => {
+      if (!isMounted) return;
+      let secs = 0;
+      let pages = 0;
 
-    let secs = 0;
-    let pages = 0;
+      const matched = (res.progressList || [])
+        .map((p) => {
+          if (p.document) {
+            secs += p.progress.active_seconds || 0;
+            pages += p.progress.current_page || 0;
+            return { progress: p.progress, doc: p.document };
+          }
+          return null;
+        })
+        .filter(Boolean) as { progress: ReadingProgress; doc: Document }[];
 
-    const matched = allProgress
-      .map((p) => {
-        const doc = docs.find((d) => d.id === p.document_id);
-        if (doc) {
-          secs += p.active_seconds || 0;
-          pages += p.current_page || 0;
-          return { progress: p, doc };
-        }
-        return null;
-      })
-      .filter(Boolean) as { progress: ReadingProgress; doc: Document }[];
+      setProgressList(matched);
+      setTotalActiveSeconds(secs);
+      setTotalPagesRead(pages);
+    }).catch((err) => {
+      console.error('Error loading reading statistics:', err);
+    });
 
-    setProgressList(matched);
-    setTotalActiveSeconds(secs);
-    setTotalPagesRead(pages);
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const formatActiveTime = (totalSecs: number) => {

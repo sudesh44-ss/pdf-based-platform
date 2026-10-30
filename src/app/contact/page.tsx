@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Mail, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
+import { Mail, MessageSquare, Send, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { api } from '@/lib/api/client';
 
 export default function ContactPage() {
   const [name, setName] = useState('');
@@ -9,10 +10,23 @@ export default function ContactPage() {
   const [subject, setSubject] = useState('general');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.contact.send({ name, email, subject, message });
+      setNotice(res.notice || null);
+      setSubmitted(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit contact request.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -40,9 +54,20 @@ export default function ContactPage() {
             <p style={{ color: 'var(--text-secondary)', maxWidth: '400px' }}>
               Thank you for contacting us, {name}. Our engineering and support team will respond within 24 to 48 hours.
             </p>
+            {notice && (
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', maxWidth: '440px', background: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: 'var(--radius-sm)' }}>
+                {notice}
+              </p>
+            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {error && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-danger)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' }}>
+                <AlertCircle size={16} />
+                <span>{error}</span>
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
                 <label htmlFor="contactNameInput" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>

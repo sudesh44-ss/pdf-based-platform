@@ -1,26 +1,41 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { BookMarked, Trash2, ExternalLink, Bookmark as BookmarkIcon } from 'lucide-react';
-import { storageEngine } from '@/lib/store/storageEngine';
+import { BookMarked, Trash2, ExternalLink, Bookmark as BookmarkIcon, Loader2, AlertCircle } from 'lucide-react';
+import { api } from '@/lib/api/client';
 import { Bookmark } from '@/lib/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 
 export default function BookmarksPage() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const reload = () => {
-    setBookmarks(storageEngine.getBookmarks());
-  };
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.bookmarks.list();
+      setBookmarks(res.bookmarks || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load bookmarks');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
 
-  const handleDelete = (docId: string, page: number) => {
-    storageEngine.removeBookmark(docId, page);
-    reload();
+  const handleDelete = async (bookmarkId: string) => {
+    try {
+      await api.bookmarks.delete(bookmarkId);
+      await reload();
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove bookmark');
+    }
   };
 
   return (
@@ -35,7 +50,19 @@ export default function BookmarksPage() {
           </p>
         </div>
 
-        {bookmarks.length === 0 ? (
+        {error && (
+          <div style={{ padding: '0.85rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-danger)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Loader2 size={28} className="animate-spin" style={{ margin: '0 auto 0.5rem' }} />
+            <p>Loading bookmarks...</p>
+          </div>
+        ) : bookmarks.length === 0 ? (
           <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', color: 'var(--text-muted)' }}>
             <BookmarkIcon size={40} style={{ margin: '0 auto 1rem', display: 'block' }} />
             <h3>No Bookmarks Saved Yet</h3>
@@ -103,7 +130,7 @@ export default function BookmarksPage() {
 
                   <button
                     type="button"
-                    onClick={() => handleDelete(bm.document_id, bm.page_number)}
+                    onClick={() => handleDelete(bm.id)}
                     style={{
                       padding: '0.45rem',
                       color: 'var(--accent-danger)',
