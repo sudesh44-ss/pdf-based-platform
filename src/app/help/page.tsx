@@ -6,7 +6,7 @@ import {
   HelpCircle,
   Crop,
   Code2,
-  ScanText,
+  BookOpen,
   FileEdit,
   HardDrive,
   Keyboard,
@@ -23,7 +23,7 @@ export default function HelpPage() {
         <div>
           <h1 style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>Documentation &amp; User Guides</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginTop: '0.35rem' }}>
-            Everything you need to master Smart Crop View, Code Focus Mode, Tiptap study notes, and Telegram cloud archiving.
+            Everything you need to master Smart Crop View, Code Focus Mode, native PDF search, and Telegram channel publishing.
           </p>
         </div>
 
@@ -66,10 +66,6 @@ export default function HelpPage() {
               <kbd style={{ background: 'var(--bg-card)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border-medium)', fontFamily: 'var(--font-mono)' }}>F</kbd>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-xs)' }}>
-              <span>Toggle Study Notes</span>
-              <kbd style={{ background: 'var(--bg-card)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border-medium)', fontFamily: 'var(--font-mono)' }}>N</kbd>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-xs)' }}>
               <span>Bookmark Page</span>
               <kbd style={{ background: 'var(--bg-card)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border-medium)', fontFamily: 'var(--font-mono)' }}>B</kbd>
             </div>
@@ -100,11 +96,11 @@ export default function HelpPage() {
 
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ScanText size={18} color="var(--accent-secondary)" />
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Non-Blocking Page OCR</h3>
+              <BookOpen size={18} color="var(--accent-secondary)" />
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>High-Fidelity PDF Text Search</h3>
             </div>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              For PDFs containing pure image scans without selectable text, click the OCR icon in the toolbar. Tesseract.js processes the visible page in a background web worker without freezing the reader. The recognized text becomes searchable in the global search index.
+              OpenShelf provides native PDF.js text selection and search capabilities. Select and copy text on any document page with high fidelity.
             </p>
           </div>
         </div>

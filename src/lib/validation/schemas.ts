@@ -72,12 +72,6 @@ export const readingProgressSchema = z.object({
   active_seconds: z.number().int().min(0).default(0),
 });
 
-export const ocrRequestSchema = z.object({
-  document_id: z.string().uuid(),
-  page_number: z.number().int().positive(),
-  language: z.string().default('eng'),
-});
-
 export const submissionReviewSchema = z.object({
   submission_id: z.string().uuid(),
   action: z.enum(['approve', 'reject']),
@@ -88,9 +82,4 @@ export const contentReportSchema = z.object({
   document_id: z.string().uuid(),
   reason: z.enum(['copyright', 'inappropriate', 'corrupted', 'spam', 'other']),
   details: z.string().max(1000).optional(),
-});
-
-export const telegramBackupSchema = z.object({
-  document_ids: z.array(z.string().uuid()).min(1, 'Select at least one document to backup'),
-  destination: z.enum(['telegram', 'r2', 'local']).default('telegram'),
 });

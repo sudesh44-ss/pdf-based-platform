@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getDocuments,
   getDocumentById,
@@ -34,7 +34,11 @@ import {
   createSubmission,
   reviewSubmission,
 } from '../lib/services/moderationService';
-import { checkRateLimit } from '../lib/api/rateLimit';
+import {
+  checkRateLimit,
+  setRateLimitStore,
+  MemorySharedRateLimitStore,
+} from '../lib/api/rateLimit';
 
 describe('Backend API & Service Operations', () => {
   beforeEach(() => {
@@ -292,18 +296,26 @@ describe('Backend API & Service Operations', () => {
   });
 
   describe('Rate Limiter', () => {
-    it('enforces limit and blocks excessive calls within the time window', () => {
+    beforeEach(() => {
+      setRateLimitStore(new MemorySharedRateLimitStore());
+    });
+
+    afterEach(() => {
+      setRateLimitStore(null);
+    });
+
+    it('enforces limit and blocks excessive calls within the time window', async () => {
       const key = `test_limit_${Date.now()}`;
       const limit = 3;
       const windowMs = 5000;
 
       // First 3 calls succeed
-      expect(checkRateLimit(key, limit, windowMs).success).toBe(true);
-      expect(checkRateLimit(key, limit, windowMs).success).toBe(true);
-      expect(checkRateLimit(key, limit, windowMs).success).toBe(true);
+      expect((await checkRateLimit(key, limit, windowMs)).success).toBe(true);
+      expect((await checkRateLimit(key, limit, windowMs)).success).toBe(true);
+      expect((await checkRateLimit(key, limit, windowMs)).success).toBe(true);
 
       // 4th call is rate-limited
-      const rateLimited = checkRateLimit(key, limit, windowMs);
+      const rateLimited = await checkRateLimit(key, limit, windowMs);
       expect(rateLimited.success).toBe(false);
       expect(rateLimited.remaining).toBe(0);
       expect(rateLimited.resetMs).toBeGreaterThan(0);

@@ -41,10 +41,10 @@ export default function TermsPage() {
 
         <div>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-            4. OCR and Code Content Disclaimer
+            4. Code Magnification and Content Disclaimer
           </h2>
           <p>
-            Optical Character Recognition (OCR) extracted text and code magnification features are provided on an &ldquo;as-is&rdquo; basis for study convenience. The platform does not guarantee typographic or syntactic accuracy of code extracted from screenshots.
+            Code magnification and reading features are provided on an &ldquo;as-is&rdquo; basis for study convenience. The platform does not guarantee typographic or syntactic accuracy of third-party document content.
           </p>
         </div>
 

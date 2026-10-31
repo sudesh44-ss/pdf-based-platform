@@ -1,5 +1,6 @@
-import { checkRateLimit } from '@/lib/api/rateLimit';
+import { checkRateLimit, getClientIp } from '@/lib/api/rateLimit';
 import { apiSuccess, apiError } from '@/lib/api/response';
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const contactSchema = z.object({
@@ -10,16 +11,30 @@ const contactSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  // 1. Abuse protection / rate limiting
-  const ip = request.headers.get('x-forwarded-for') || 'local_client';
-  const rateLimit = checkRateLimit(`contact:${ip}`, 5, 600000); // 5 submissions per 10 minutes
+  // 1. Abuse protection / distributed rate limiting
+  const ip = getClientIp(request);
+  const rateLimit = await checkRateLimit(`contact:${ip}`, 5, 600000, {
+    failClosed: false,
+    endpoint: 'contact',
+  });
 
   if (!rateLimit.success) {
-    return apiError(
-      'RATE_LIMITED',
-      'Too many contact requests from this address. Please wait before submitting again.',
-      429,
-      { resetMs: rateLimit.resetMs }
+    const retryAfter = Math.max(1, Math.ceil(rateLimit.resetMs / 1000));
+    return new NextResponse(
+      JSON.stringify({
+        success: false,
+        error: {
+          code: 'RATE_LIMITED',
+          message: 'Too many contact requests from this address. Please wait before submitting again.',
+        },
+      }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(retryAfter),
+        },
+      }
     );
   }
 

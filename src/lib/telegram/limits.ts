@@ -24,6 +24,16 @@ export const TELEGRAM_LIMITS = {
   APP_MAX_UPLOAD_BYTES: 100 * 1024 * 1024, // 100 MB
 };
 
+/**
+ * Direct Admin Panel -> Vercel Serverless Function Limits
+ * Vercel Serverless Functions enforce a 4.5 MB request body limit.
+ * We enforce a safe 4.0 MB limit for the raw PDF binary to account for multipart/form-data overhead.
+ */
+export const ADMIN_DIRECT_UPLOAD_LIMITS = {
+  MAX_FILE_BYTES: 4 * 1024 * 1024, // 4 MB safe binary limit
+  MAX_REQUEST_BYTES: 4.5 * 1024 * 1024, // 4.5 MB Vercel function payload ceiling
+};
+
 export function checkTelegramUploadEligibility(fileSizeBytes: number, isLocalApiServer: boolean): {
   eligible: boolean;
   reason?: string;

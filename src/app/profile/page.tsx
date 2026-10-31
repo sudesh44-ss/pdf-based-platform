@@ -11,8 +11,6 @@ import {
   BookOpen,
   Heart,
   BookMarked,
-  Highlighter,
-  FileText,
   LogOut,
   CheckCircle2,
   AlertCircle,
@@ -37,9 +35,7 @@ export default function ProfilePage() {
   const [stats, setStats] = useState({
     totalReadingSeconds: 0,
     documentsCount: 0,
-    notesCount: 0,
     bookmarksCount: 0,
-    highlightsCount: 0,
   });
   const [favoriteDocs, setFavoriteDocs] = useState<Document[]>([]);
   const [recentDocs, setRecentDocs] = useState<Document[]>([]);
@@ -52,13 +48,11 @@ export default function ProfilePage() {
       setLoading(true);
       setErrorMessage(null);
       try {
-        const [meRes, progressRes, docsRes, notesRes, bookmarksRes, annotationsRes] = await Promise.allSettled([
+        const [meRes, progressRes, docsRes, bookmarksRes] = await Promise.allSettled([
           api.auth.getMe(),
           api.readingProgress.list(),
           api.documents.getMine({ limit: 10 }),
-          api.notes.list(),
           api.bookmarks.list(),
-          api.annotations.list(),
         ]);
 
         if (!isMounted) return;
@@ -83,16 +77,12 @@ export default function ProfilePage() {
           setRecentDocs(myDocs.slice(0, 4));
         }
 
-        const notesCount = notesRes.status === 'fulfilled' ? notesRes.value.total : 0;
         const bookmarksCount = bookmarksRes.status === 'fulfilled' ? bookmarksRes.value.total : 0;
-        const highlightsCount = annotationsRes.status === 'fulfilled' ? annotationsRes.value.total : 0;
 
         setStats({
           totalReadingSeconds: totalSeconds,
           documentsCount: myDocs.length,
-          notesCount,
           bookmarksCount,
-          highlightsCount,
         });
 
         // Also fetch favorites if available
@@ -436,49 +426,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-medium)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '1rem',
-                }}
-              >
-                <div style={{ padding: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', borderRadius: 'var(--radius-sm)', color: '#10b981' }}>
-                  <FileText size={24} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    {stats.notesCount}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Study Notes</div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-medium)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '1rem',
-                }}
-              >
-                <div style={{ padding: '0.75rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--radius-sm)', color: '#f59e0b' }}>
-                  <Highlighter size={24} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    {stats.highlightsCount}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Active Highlights</div>
-                </div>
-              </div>
             </div>
 
             {/* Recent Documents */}

@@ -3,7 +3,6 @@ import {
   documentUploadSchema,
   noteSchema,
   bookmarkSchema,
-  telegramBackupSchema,
   submissionReviewSchema,
 } from './schemas';
 
@@ -49,20 +48,6 @@ describe('Zod Validation Schemas', () => {
       title: 'Important Graph Proof',
     };
     expect(bookmarkSchema.safeParse(validBookmark).success).toBe(true);
-  });
-
-  it('validates telegram backup request requiring at least 1 document', () => {
-    const valid = {
-      document_ids: ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'],
-      destination: 'telegram',
-    };
-    expect(telegramBackupSchema.safeParse(valid).success).toBe(true);
-
-    const empty = {
-      document_ids: [],
-      destination: 'telegram',
-    };
-    expect(telegramBackupSchema.safeParse(empty).success).toBe(false);
   });
 
   it('validates moderation submission review schema', () => {

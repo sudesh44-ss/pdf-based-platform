@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, Search, UploadCloud, Shield, User, Menu, X, LogOut } from 'lucide-react';
+import { BookOpen, Search, UploadCloud, User, Menu, X, LogOut } from 'lucide-react';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { api } from '@/lib/api/client';
 import { Profile } from '@/lib/types/database';
@@ -81,48 +81,15 @@ export function Header() {
             <div className={styles.brandIcon}>
               <BookOpen size={18} />
             </div>
-            <span>SmartPDF</span>
+            <span>OpenShelf</span>
           </Link>
-
-          <nav className={styles.navLinks} aria-label="Main Navigation">
-            <Link
-              href="/library"
-              className={`${styles.navLink} ${pathname === '/library' ? styles.navLinkActive : ''}`}
-            >
-              Public Library
-            </Link>
-            <Link
-              href="/dashboard"
-              className={`${styles.navLink} ${pathname === '/dashboard' ? styles.navLinkActive : ''}`}
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/my-library"
-              className={`${styles.navLink} ${pathname === '/my-library' ? styles.navLinkActive : ''}`}
-            >
-              My Library
-            </Link>
-            <Link
-              href="/notes"
-              className={`${styles.navLink} ${pathname === '/notes' ? styles.navLinkActive : ''}`}
-            >
-              Notes
-            </Link>
-            <Link
-              href="/storage"
-              className={`${styles.navLink} ${pathname === '/storage' ? styles.navLinkActive : ''}`}
-            >
-              Backup & Storage
-            </Link>
-          </nav>
         </div>
 
         <form className={styles.searchForm} onSubmit={handleSearch}>
           <Search size={16} className={styles.searchIcon} />
           <input
             type="search"
-            placeholder="Search PDFs & OCR text..."
+            placeholder="Search PDFs &amp; documents..."
             className={styles.searchInput}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}

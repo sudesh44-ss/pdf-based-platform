@@ -28,7 +28,9 @@ export class TelegramStorageClient {
 
   constructor() {
     this.botToken = process.env.TELEGRAM_BOT_TOKEN;
-    this.chatId = process.env.TELEGRAM_CHANNEL_OR_CHAT_ID;
+    this.chatId =
+      process.env.TELEGRAM_CHANNEL_OR_CHAT_ID ||
+      process.env.TELEGRAM_ALLOWED_CHAT_IDS?.split(',')[0]?.trim();
     this.apiBaseUrl = process.env.TELEGRAM_API_BASE_URL || 'https://api.telegram.org';
     this.isConfigured = Boolean(this.botToken && this.chatId && !this.botToken.includes('123456789:ABC'));
   }
@@ -48,7 +50,8 @@ export class TelegramStorageClient {
   public async uploadPdf(
     buffer: Buffer | Uint8Array,
     fileName: string,
-    caption?: string
+    caption?: string,
+    targetChatId?: string | number
   ): Promise<TelegramUploadResult> {
     const fileBytes = Buffer.from(buffer);
     const hash = crypto.createHash('sha256').update(fileBytes).digest('hex');
@@ -64,8 +67,10 @@ export class TelegramStorageClient {
       };
     }
 
+    const destinationChatId = targetChatId || this.chatId;
+
     // If live Telegram credentials are not yet set in production, provide high-fidelity simulated backup
-    if (!this.isConfigured) {
+    if (!this.isConfigured || !destinationChatId) {
       return {
         success: true,
         messageId: Math.floor(Math.random() * 900000) + 100000,
@@ -79,7 +84,7 @@ export class TelegramStorageClient {
 
     try {
       const formData = new FormData();
-      formData.append('chat_id', this.chatId!);
+      formData.append('chat_id', String(destinationChatId));
       const blob = new Blob([fileBytes], { type: 'application/pdf' });
       formData.append('document', blob, fileName);
       if (caption) {
@@ -181,6 +186,45 @@ export class TelegramStorageClient {
       return {
         success: false,
         error: err.message || 'Error downloading file from Telegram',
+      };
+    }
+  }
+
+  /**
+   * Deletes a message from Telegram channel/group.
+   */
+  public async deleteMessage(
+    chatId: string | number,
+    messageId: number
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!this.isConfigured) {
+      return { success: true };
+    }
+
+    try {
+      const url = `${this.apiBaseUrl}/bot${this.botToken}/deleteMessage`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_id: messageId,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        return {
+          success: false,
+          error: data.description || `Telegram API error (${response.status})`,
+        };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Network error deleting message from Telegram',
       };
     }
   }

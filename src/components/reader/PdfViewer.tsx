@@ -2,13 +2,11 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CropSettings, ReadingProgress, ViewMode } from '@/lib/types/database';
-import { ocrEngine } from '@/lib/ocr/engine';
 import { api } from '@/lib/api/client';
 import { ReaderToolbar } from './ReaderToolbar';
 import { ThumbnailDrawer } from './ThumbnailDrawer';
 import { SmartCropOverlay } from './SmartCropOverlay';
 import { CodeFocusModal } from './CodeFocusModal';
-import { NotesSplitPanel } from './NotesSplitPanel';
 import styles from './PdfViewer.module.css';
 
 interface PdfViewerProps {
@@ -28,7 +26,9 @@ export function PdfViewer({
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
   const currentRenderTaskRef = useRef<any>(null);
+  const currentTextLayerRef = useRef<any>(null);
 
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(initialPage);
@@ -47,12 +47,9 @@ export function PdfViewer({
     height: 100,
   });
   const [codeFocusOpen, setCodeFocusOpen] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
   const [thumbnailsOpen, setThumbnailsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
-  const [isOcrRunning, setIsOcrRunning] = useState(false);
-  const [ocrResultText, setOcrResultText] = useState<string | null>(null);
 
   // Active reading time tracking
   const activeSecondsRef = useRef(0);
@@ -144,10 +141,17 @@ export function PdfViewer({
       if (currentRenderTaskRef.current) {
         currentRenderTaskRef.current.cancel();
       }
+      if (currentTextLayerRef.current) {
+        try {
+          currentTextLayerRef.current.cancel();
+        } catch {
+          // Ignored
+        }
+      }
     };
   }, [pdfUrl]);
 
-  // 4. Render Current Page on Canvas
+  // 4. Render Current Page on Canvas and Text Layer
   const renderPage = useCallback(async () => {
     if (!pdfDoc || !canvasRef.current) return;
 
@@ -157,6 +161,15 @@ export function PdfViewer({
       } catch {
         // Ignored
       }
+    }
+
+    if (currentTextLayerRef.current) {
+      try {
+        currentTextLayerRef.current.cancel();
+      } catch {
+        // Ignored
+      }
+      currentTextLayerRef.current = null;
     }
 
     try {
@@ -185,6 +198,43 @@ export function PdfViewer({
       currentRenderTaskRef.current = task;
       await task.promise;
       ctx.restore();
+
+      // Render Text Layer for browser-native selection & copy
+      if (textLayerRef.current) {
+        const textLayerDiv = textLayerRef.current;
+        textLayerDiv.innerHTML = '';
+        textLayerDiv.style.width = `${Math.floor(viewport.width)}px`;
+        textLayerDiv.style.height = `${Math.floor(viewport.height)}px`;
+        textLayerDiv.style.setProperty('--scale-factor', `${viewport.scale}`);
+        textLayerDiv.style.setProperty('--total-scale-factor', `${viewport.scale}`);
+
+        try {
+          const textContent = await page.getTextContent();
+          const pdfjs = await import('pdfjs-dist');
+
+          if (pdfjs.TextLayer) {
+            const textLayer = new pdfjs.TextLayer({
+              textContentSource: textContent,
+              container: textLayerDiv,
+              viewport,
+            });
+            currentTextLayerRef.current = textLayer;
+            await textLayer.render();
+          } else if (typeof (pdfjs as any).renderTextLayer === 'function') {
+            const textTask = (pdfjs as any).renderTextLayer({
+              textContentSource: textContent,
+              container: textLayerDiv,
+              viewport,
+            });
+            currentTextLayerRef.current = textTask;
+            await textTask.promise;
+          }
+        } catch (textErr: any) {
+          if (textErr?.name !== 'RenderingCancelledException') {
+            console.warn('PDF text layer rendering notice:', textErr);
+          }
+        }
+      }
     } catch (err: any) {
       if (err.name !== 'RenderingCancelledException') {
         console.error('Render error:', err);
@@ -203,6 +253,11 @@ export function PdfViewer({
         return; // Do not trigger when user is typing in notes or input
       }
 
+      // Preserve native browser shortcuts: Ctrl+C / Cmd+C (copy), Ctrl+A (select all), etc.
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
       if (e.key === 'ArrowRight' || e.key === 'PageDown') {
         setCurrentPage((prev) => Math.min(totalPages, prev + 1));
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
@@ -215,8 +270,6 @@ export function PdfViewer({
         setCropSettings((prev) => ({ ...prev, enabled: !prev.enabled }));
       } else if (e.key.toLowerCase() === 'f') {
         toggleFullscreen();
-      } else if (e.key.toLowerCase() === 'n') {
-        setNotesOpen((prev) => !prev);
       } else if (e.key.toLowerCase() === 'b') {
         toggleBookmark();
       }
@@ -261,33 +314,9 @@ export function PdfViewer({
     }
   };
 
-  const handleRunOcr = async () => {
-    setIsOcrRunning(true);
-    try {
-      if (canvasRef.current) {
-        const result = await ocrEngine.recognizePage(canvasRef.current, 'eng');
-        if (result.success && result.text) {
-          setOcrResultText(result.text);
-          alert(`OCR Extraction Complete (Page ${currentPage}):\n\n${result.text.slice(0, 300)}...`);
-        } else {
-          // Fallback simulation
-          const sim = ocrEngine.simulatePageOcr(currentPage);
-          setOcrResultText(sim.text || '');
-          alert(`OCR Extraction Complete (Page ${currentPage}):\n\n${sim.text}`);
-        }
-      }
-    } catch {
-      const sim = ocrEngine.simulatePageOcr(currentPage);
-      setOcrResultText(sim.text || '');
-      alert(`OCR Extraction Complete (Page ${currentPage}):\n\n${sim.text}`);
-    } finally {
-      setIsOcrRunning(false);
-    }
-  };
-
   const handleFitWidth = () => {
     if (containerRef.current && canvasRef.current) {
-      const availableWidth = containerRef.current.clientWidth - (notesOpen ? 360 : 0) - (thumbnailsOpen ? 220 : 0) - 80;
+      const availableWidth = containerRef.current.clientWidth - (thumbnailsOpen ? 220 : 0) - 80;
       const baseWidth = 612; // Standard PDF point width
       const newZoom = Math.max(0.5, Math.min(2.5, Math.round((availableWidth / baseWidth) * 100) / 100));
       setZoom(newZoom);
@@ -313,8 +342,6 @@ export function PdfViewer({
         viewMode={viewMode}
         isSmartCrop={cropSettings.enabled}
         isBookmarked={isBookmarked}
-        isOcrRunning={isOcrRunning}
-        notesOpen={notesOpen}
         thumbnailsOpen={thumbnailsOpen}
         isFullscreen={isFullscreen}
         onPageChange={(p) => setCurrentPage(p)}
@@ -324,9 +351,7 @@ export function PdfViewer({
         onToggleViewMode={() => setViewMode(viewMode === 'single' ? 'continuous' : 'single')}
         onToggleSmartCrop={() => setCropSettings({ ...cropSettings, enabled: !cropSettings.enabled })}
         onOpenCodeFocus={() => setCodeFocusOpen(true)}
-        onRunOcr={handleRunOcr}
         onToggleBookmark={toggleBookmark}
-        onToggleNotes={() => setNotesOpen(!notesOpen)}
         onToggleThumbnails={() => setThumbnailsOpen(!thumbnailsOpen)}
         onToggleFullscreen={toggleFullscreen}
       />
@@ -380,6 +405,7 @@ export function PdfViewer({
               }}
             >
               <canvas ref={canvasRef} className={styles.canvasElement} />
+              <div ref={textLayerRef} className={`${styles.textLayer} textLayer`} />
             </div>
           )}
 
@@ -391,16 +417,6 @@ export function PdfViewer({
             />
           )}
         </div>
-
-        {notesOpen && (
-          <NotesSplitPanel
-            documentId={documentId}
-            documentTitle={documentTitle}
-            currentPage={currentPage}
-            onJumpToPage={(p) => setCurrentPage(p)}
-            onClose={() => setNotesOpen(false)}
-          />
-        )}
       </div>
 
       {codeFocusOpen && (

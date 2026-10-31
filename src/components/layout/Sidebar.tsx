@@ -7,11 +7,8 @@ import {
   LayoutDashboard,
   Library,
   FolderOpen,
-  FileText,
   BookMarked,
-  Highlighter,
   BarChart3,
-  HardDrive,
   UploadCloud,
   Settings,
   User,
@@ -22,7 +19,6 @@ import styles from './Sidebar.module.css';
 interface SidebarProps {
   counts?: {
     documents?: number;
-    notes?: number;
     bookmarks?: number;
   };
 }
@@ -38,13 +34,13 @@ export function Sidebar({ counts }: SidebarProps) {
   return (
     <aside className={styles.sidebar} aria-label="Workspace Sidebar">
       <div className={styles.section}>
-        <span className={styles.sectionTitle}>Main Library</span>
+        <span className={styles.sectionTitle}>Library</span>
         <Link
           href="/dashboard"
           className={`${styles.linkItem} ${isLinkActive('/dashboard') ? styles.linkItemActive : ''}`}
         >
           <div className={styles.iconWrapper}><LayoutDashboard size={17} /></div>
-          <span>Dashboard</span>
+          <span>Feed</span>
         </Link>
         <Link
           href="/library"
@@ -61,25 +57,6 @@ export function Sidebar({ counts }: SidebarProps) {
           <span>My PDFs</span>
           {counts?.documents !== undefined && <span className={styles.badge}>{counts.documents}</span>}
         </Link>
-      </div>
-
-      <div className={styles.section}>
-        <span className={styles.sectionTitle}>Study Workspace</span>
-        <Link
-          href="/notes"
-          className={`${styles.linkItem} ${isLinkActive('/notes') ? styles.linkItemActive : ''}`}
-        >
-          <div className={styles.iconWrapper}><FileText size={17} /></div>
-          <span>Study Notes</span>
-          {counts?.notes !== undefined && <span className={styles.badge}>{counts.notes}</span>}
-        </Link>
-        <Link
-          href="/notebooks"
-          className={`${styles.linkItem} ${isLinkActive('/notebooks') ? styles.linkItemActive : ''}`}
-        >
-          <div className={styles.iconWrapper}><BookMarked size={17} /></div>
-          <span>Notebooks</span>
-        </Link>
         <Link
           href="/bookmarks"
           className={`${styles.linkItem} ${isLinkActive('/bookmarks') ? styles.linkItemActive : ''}`}
@@ -87,13 +64,6 @@ export function Sidebar({ counts }: SidebarProps) {
           <div className={styles.iconWrapper}><BookMarked size={17} /></div>
           <span>Bookmarks</span>
           {counts?.bookmarks !== undefined && <span className={styles.badge}>{counts.bookmarks}</span>}
-        </Link>
-        <Link
-          href="/highlights"
-          className={`${styles.linkItem} ${isLinkActive('/highlights') ? styles.linkItemActive : ''}`}
-        >
-          <div className={styles.iconWrapper}><Highlighter size={17} /></div>
-          <span>Highlights</span>
         </Link>
         <Link
           href="/statistics"
@@ -105,14 +75,7 @@ export function Sidebar({ counts }: SidebarProps) {
       </div>
 
       <div className={styles.section}>
-        <span className={styles.sectionTitle}>Cloud & System</span>
-        <Link
-          href="/storage"
-          className={`${styles.linkItem} ${isLinkActive('/storage') ? styles.linkItemActive : ''}`}
-        >
-          <div className={styles.iconWrapper}><HardDrive size={17} /></div>
-          <span>Telegram Backup</span>
-        </Link>
+        <span className={styles.sectionTitle}>Account &amp; System</span>
         <Link
           href="/my-contributions"
           className={`${styles.linkItem} ${isLinkActive('/my-contributions') ? styles.linkItemActive : ''}`}
@@ -139,19 +102,8 @@ export function Sidebar({ counts }: SidebarProps) {
           className={`${styles.linkItem} ${isLinkActive('/help') ? styles.linkItemActive : ''}`}
         >
           <div className={styles.iconWrapper}><HelpCircle size={17} /></div>
-          <span>Help & Guide</span>
+          <span>Help &amp; Guide</span>
         </Link>
-      </div>
-
-      <div className={styles.storageCard}>
-        <div className={styles.storageTitle}>
-          <span>Telegram Storage</span>
-          <span>16.4 MB</span>
-        </div>
-        <div className={styles.storageProgressBg}>
-          <div className={styles.storageProgressBar} style={{ width: '16%' }} />
-        </div>
-        <span className={styles.storageSubtext}>Encrypted Telegram Cloud Active</span>
       </div>
     </aside>
   );

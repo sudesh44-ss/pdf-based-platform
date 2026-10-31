@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Library, FileText, Search, HardDrive } from 'lucide-react';
+import { LayoutDashboard, Library, FolderOpen, Search, User } from 'lucide-react';
 import styles from './MobileNav.module.css';
 
 export function MobileNav() {
@@ -20,7 +20,7 @@ export function MobileNav() {
           className={`${styles.navItem} ${pathname === '/dashboard' ? styles.active : ''}`}
         >
           <LayoutDashboard size={19} />
-          <span>Dashboard</span>
+          <span>Feed</span>
         </Link>
         <Link
           href="/library"
@@ -30,11 +30,11 @@ export function MobileNav() {
           <span>Library</span>
         </Link>
         <Link
-          href="/notes"
-          className={`${styles.navItem} ${pathname === '/notes' ? styles.active : ''}`}
+          href="/my-library"
+          className={`${styles.navItem} ${pathname === '/my-library' ? styles.active : ''}`}
         >
-          <FileText size={19} />
-          <span>Notes</span>
+          <FolderOpen size={19} />
+          <span>My PDFs</span>
         </Link>
         <Link
           href="/search"
@@ -44,11 +44,11 @@ export function MobileNav() {
           <span>Search</span>
         </Link>
         <Link
-          href="/storage"
-          className={`${styles.navItem} ${pathname === '/storage' ? styles.active : ''}`}
+          href="/profile"
+          className={`${styles.navItem} ${pathname === '/profile' ? styles.active : ''}`}
         >
-          <HardDrive size={19} />
-          <span>Storage</span>
+          <User size={19} />
+          <span>Profile</span>
         </Link>
       </div>
     </nav>

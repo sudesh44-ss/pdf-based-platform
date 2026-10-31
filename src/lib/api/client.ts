@@ -8,7 +8,6 @@ import {
   ReadingProgress,
   ContributionSubmission,
   ContentReport,
-  BackupJob,
   Profile,
 } from '../types/database';
 
@@ -371,16 +370,6 @@ export const api = {
       return request('/api/contact', {
         method: 'POST',
         body: JSON.stringify(data),
-      });
-    },
-  },
-
-  // Telegram Backup
-  telegram: {
-    async backup(documentIds: string[], destination: 'telegram' | 'r2' | 'local' = 'telegram'): Promise<BackupJob> {
-      return request('/api/telegram/backup', {
-        method: 'POST',
-        body: JSON.stringify({ document_ids: documentIds, destination }),
       });
     },
   },

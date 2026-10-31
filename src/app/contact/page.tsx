@@ -136,7 +136,7 @@ export default function ContactPage() {
               >
                 <option value="general">General Inquiry &amp; Feedback</option>
                 <option value="telegram">Telegram Bot Cloud Storage Setup</option>
-                <option value="ocr">OCR &amp; Reader Enhancement Suggestion</option>
+                <option value="reader">Reader Enhancement Suggestion</option>
                 <option value="copyright">Copyright / DMCA Notice</option>
                 <option value="bug">Bug Report / Defect</option>
               </select>

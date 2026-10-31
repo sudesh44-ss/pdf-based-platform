@@ -4,6 +4,7 @@ import { getAuthenticatedUser } from '@/lib/services/authService';
 import { getDocumentById } from '@/lib/services/documentService';
 import { telegramClient } from '@/lib/telegram/client';
 import { getVerifiedAdminSession } from '@/lib/auth/adminAuth';
+import { parseHttpRange } from '@/lib/pdf/rangeParser';
 
 export async function GET(
   request: Request,
@@ -26,7 +27,10 @@ export async function GET(
 
   // Double check publication status for non-owners/non-admins
   const isOwner = user && doc.user_id === user.id;
-  const isAccessible = (doc.is_public && doc.status === 'published' && !doc.is_trash) || isOwner || isAdmin;
+  const isAccessible =
+    (doc.is_public && doc.status === 'published' && !doc.is_trash && !doc.is_deleted) ||
+    isOwner ||
+    isAdmin;
 
   if (!isAccessible) {
     return NextResponse.json({ error: 'Document is not published' }, { status: 403 });
@@ -57,25 +61,36 @@ export async function GET(
     'Cache-Control': 'public, max-age=3600',
   };
 
+  const rangeResult = parseHttpRange(rangeHeader, totalLength);
+
+  // Return HTTP 416 for unsatisfiable byte ranges (start >= totalLength, end < start, invalid suffix)
+  if (rangeResult.status === 416) {
+    return new NextResponse(null, {
+      status: 416,
+      headers: {
+        'Content-Range': rangeResult.contentRange || `bytes */${totalLength}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Type': 'application/pdf',
+        'Cache-Control': 'no-cache',
+      },
+    });
+  }
+
   // Support HTTP 206 Partial Content Range requests (crucial for PDF.js page streaming)
-  if (rangeHeader && rangeHeader.startsWith('bytes=')) {
-    const parts = rangeHeader.replace(/bytes=/, '').split('-');
-    const start = parseInt(parts[0], 10);
-    const end = parts[1] ? parseInt(parts[1], 10) : totalLength - 1;
+  if (
+    rangeResult.status === 206 &&
+    rangeResult.start !== undefined &&
+    rangeResult.end !== undefined
+  ) {
+    const chunk = fileBuffer.subarray(rangeResult.start, rangeResult.end + 1);
 
-    if (!isNaN(start) && start < totalLength) {
-      const safeEnd = Math.min(end, totalLength - 1);
-      const chunkSize = safeEnd - start + 1;
-      const chunk = fileBuffer.subarray(start, safeEnd + 1);
+    headers['Content-Range'] = rangeResult.contentRange!;
+    headers['Content-Length'] = String(rangeResult.chunkLength!);
 
-      headers['Content-Range'] = `bytes ${start}-${safeEnd}/${totalLength}`;
-      headers['Content-Length'] = String(chunkSize);
-
-      return new NextResponse(chunk as any, {
-        status: 206,
-        headers,
-      });
-    }
+    return new NextResponse(chunk as any, {
+      status: 206,
+      headers,
+    });
   }
 
   headers['Content-Length'] = String(totalLength);

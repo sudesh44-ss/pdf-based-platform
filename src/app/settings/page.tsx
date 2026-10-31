@@ -51,7 +51,7 @@ export default function SettingsPage() {
   };
 
   const handleClearCache = () => {
-    if (confirm('Clear local offline reading progress and cached thumbnails? Your saved documents and notes will remain intact.')) {
+    if (confirm('Clear local offline reading progress and cached thumbnails? Your saved documents and bookmarks will remain intact.')) {
       localStorage.removeItem('smart_pdf_progress_v1');
       alert('Local reader cache cleared successfully.');
     }

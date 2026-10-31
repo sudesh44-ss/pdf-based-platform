@@ -17,7 +17,7 @@ export default function PrivacyPage() {
             1. Overview &amp; Architecture
           </h2>
           <p>
-            SmartPDF operates as a client-first digital library and study environment. We minimize server data collection by running core PDF.js canvas rendering, image cropping, and client-side OCR locally within your web browser.
+            SmartPDF operates as a client-first digital library and study environment. We minimize server data collection by running core PDF.js canvas rendering, image cropping, and client-side document viewing locally within your web browser.
           </p>
         </div>
 

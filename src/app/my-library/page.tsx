@@ -189,13 +189,13 @@ export default function MyLibraryPage() {
 
   return (
     <div className={styles.container}>
-      <Sidebar counts={{ documents: documents.length, notes: 0, bookmarks: 0 }} />
+      <Sidebar counts={{ documents: documents.length, bookmarks: 0 }} />
 
       <main className={styles.mainContent}>
         <div className={styles.headerRow}>
           <div className={styles.titleArea}>
             <h1>Personal PDF Library</h1>
-            <p>Upload private research papers, screenshot bundles, and study notebooks.</p>
+            <p>Upload private research papers, documents, and reference PDFs.</p>
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem' }}>

@@ -131,8 +131,14 @@ describe('SmartPDF Admin & Telegram Approval Workflow', () => {
           if (table === 'telegram_uploads') {
             return {
               select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    maybeSingle: async () => ({ data: null, error: null }), // No exact retries
+                  }),
+                  maybeSingle: async () => ({ data: null, error: null }), // No duplicate file
+                }),
                 or: () => ({
-                  maybeSingle: async () => ({ data: null, error: null }), // No duplicates
+                  maybeSingle: async () => ({ data: null, error: null }),
                 }),
               }),
               insert: mockInsert,
@@ -171,6 +177,14 @@ describe('SmartPDF Admin & Telegram Approval Workflow', () => {
           if (table === 'telegram_uploads') {
             return {
               select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    maybeSingle: async () => ({
+                      data: { id: 'existing-upload-123', telegram_file_id: 'tg_1' },
+                      error: null,
+                    }),
+                  }),
+                }),
                 or: () => ({
                   maybeSingle: async () => ({
                     data: { id: 'existing-upload-123', telegram_file_id: 'tg_1' },

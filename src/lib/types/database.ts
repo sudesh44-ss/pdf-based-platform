@@ -2,7 +2,6 @@ export type Role = 'user' | 'moderator' | 'admin';
 export type DocumentStatus = 'draft' | 'processing' | 'pending_review' | 'published' | 'rejected' | 'failed' | 'archived';
 export type StorageType = 'telegram' | 'r2' | 'local' | 'supabase';
 export type ViewMode = 'single' | 'double' | 'continuous';
-export type OCRStatus = 'queued' | 'processing' | 'completed' | 'failed';
 export type AnnotationType = 'highlight' | 'underline' | 'note' | 'box' | 'freehand';
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 export type ReportReason = 'copyright' | 'inappropriate' | 'corrupted' | 'spam' | 'other';
@@ -32,6 +31,10 @@ export interface Document {
   storage_type: StorageType;
   storage_file_id: string | null;
   storage_file_path: string | null;
+  telegram_chat_id?: number | null;
+  telegram_message_id?: number | null;
+  telegram_file_unique_id?: string | null;
+  source_type?: 'telegram' | 'admin_upload';
   is_public: boolean;
   status: DocumentStatus;
   categories: string[];
@@ -40,6 +43,9 @@ export interface Document {
   views_count: number;
   is_trash: boolean;
   trashed_at: string | null;
+  is_deleted?: boolean;
+  deleted_at?: string | null;
+  telegram_deleted?: boolean;
   created_at: string;
   updated_at: string;
   contributor_name?: string;
@@ -134,20 +140,6 @@ export interface ReadingProgress {
   crop_settings: CropSettings | null;
   active_seconds: number;
   last_read_at: string;
-}
-
-export interface OCRPage {
-  id: string;
-  document_id: string;
-  page_number: number;
-  status: OCRStatus;
-  extracted_text: string;
-  confidence: number;
-  language: string;
-  words_data: { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }[];
-  error_message: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface ContributionSubmission {
@@ -251,6 +243,9 @@ export interface TelegramUpload {
   thumbnail_url: string | null;
   status: TelegramUploadStatus;
   rejection_reason: string | null;
+  source_type?: 'telegram' | 'admin_upload';
+  is_duplicate?: boolean;
+  duplicate_of_id?: string | null;
   uploaded_at: string;
   reviewed_by: string | null;
   reviewed_at: string | null;

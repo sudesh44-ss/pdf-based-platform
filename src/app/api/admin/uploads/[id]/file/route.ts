@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getVerifiedAdminSession } from '@/lib/auth/adminAuth';
 import { getUploadById } from '@/lib/services/telegramService';
 import { telegramClient } from '@/lib/telegram/client';
+import { parseHttpRange } from '@/lib/pdf/rangeParser';
 
 export async function GET(
   request: Request,
@@ -37,24 +38,36 @@ export async function GET(
     'Cache-Control': 'private, no-cache',
   };
 
-  if (rangeHeader && rangeHeader.startsWith('bytes=')) {
-    const parts = rangeHeader.replace(/bytes=/, '').split('-');
-    const start = parseInt(parts[0], 10);
-    const end = parts[1] ? parseInt(parts[1], 10) : totalLength - 1;
+  const rangeResult = parseHttpRange(rangeHeader, totalLength);
 
-    if (!isNaN(start) && start < totalLength) {
-      const safeEnd = Math.min(end, totalLength - 1);
-      const chunkSize = safeEnd - start + 1;
-      const chunk = fileBuffer.subarray(start, safeEnd + 1);
+  // Return HTTP 416 for unsatisfiable byte ranges
+  if (rangeResult.status === 416) {
+    return new NextResponse(null, {
+      status: 416,
+      headers: {
+        'Content-Range': rangeResult.contentRange || `bytes */${totalLength}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Type': 'application/pdf',
+        'Cache-Control': 'no-cache',
+      },
+    });
+  }
 
-      headers['Content-Range'] = `bytes ${start}-${safeEnd}/${totalLength}`;
-      headers['Content-Length'] = String(chunkSize);
+  // Return HTTP 206 Partial Content
+  if (
+    rangeResult.status === 206 &&
+    rangeResult.start !== undefined &&
+    rangeResult.end !== undefined
+  ) {
+    const chunk = fileBuffer.subarray(rangeResult.start, rangeResult.end + 1);
 
-      return new NextResponse(chunk as any, {
-        status: 206,
-        headers,
-      });
-    }
+    headers['Content-Range'] = rangeResult.contentRange!;
+    headers['Content-Length'] = String(rangeResult.chunkLength!);
+
+    return new NextResponse(chunk as any, {
+      status: 206,
+      headers,
+    });
   }
 
   headers['Content-Length'] = String(totalLength);

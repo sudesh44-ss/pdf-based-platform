@@ -14,6 +14,8 @@ import {
   Tag,
   Save,
   Check,
+  UploadCloud,
+  AlertTriangle,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { TelegramUpload, Category } from '@/lib/types/database';
@@ -39,6 +41,17 @@ function PendingQueueContent() {
   const [publicationYear, setPublicationYear] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
+
+  // Direct upload modal state
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadDesc, setUploadDesc] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('');
+  const [uploadTags, setUploadTags] = useState('');
+  const [uploadAuthor, setUploadAuthor] = useState('');
+  const [uploadYear, setUploadYear] = useState('');
+  const [uploadingDirect, setUploadingDirect] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -190,16 +203,96 @@ function PendingQueueContent() {
     }
   };
 
+  const handleDirectUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadFile) {
+      setMessage({ text: 'Please select a PDF file to upload', type: 'error' });
+      return;
+    }
+
+    const MAX_DIRECT_BYTES = 4 * 1024 * 1024; // 4 MB Vercel Serverless Function Limit
+    if (uploadFile.size > MAX_DIRECT_BYTES) {
+      setMessage({
+        text: `Selected PDF is ${(uploadFile.size / (1024 * 1024)).toFixed(2)} MB. Direct browser uploads are limited to 4 MB to prevent Vercel Serverless payload errors. For files up to 20 MB, please post directly into your authorized Telegram group for automatic ingestion.`,
+        type: 'error',
+      });
+      return;
+    }
+
+    setUploadingDirect(true);
+    setMessage(null);
+
+    const formData = new FormData();
+    formData.append('file', uploadFile);
+    formData.append('title', uploadTitle);
+    formData.append('description', uploadDesc);
+    formData.append('category_name', uploadCategory || (categories[0]?.name || 'General Reference'));
+    formData.append('tags', uploadTags);
+    formData.append('author', uploadAuthor);
+    if (uploadYear) formData.append('publication_year', uploadYear);
+
+    try {
+      const res = await fetch('/api/admin/uploads', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Direct upload to Telegram failed');
+      }
+
+      setShowUploadModal(false);
+      setUploadFile(null);
+      setUploadTitle('');
+      setUploadDesc('');
+      setUploadTags('');
+      setUploadAuthor('');
+      setUploadYear('');
+      setMessage({
+        text: 'PDF uploaded directly to Telegram central storage and queued for review!',
+        type: 'success',
+      });
+      await fetchData();
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Error uploading PDF', type: 'error' });
+    } finally {
+      setUploadingDirect(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', height: '100%' }}>
-        <div>
-          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-            PDF Moderation &amp; Publishing Queue
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.925rem', marginTop: '0.35rem' }}>
-            Review ingested PDFs from Telegram, enrich academic metadata, and publish to the public library catalog.
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              PDF Moderation &amp; Publishing Queue
+            </h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.925rem', marginTop: '0.35rem' }}>
+              Review ingested PDFs from Telegram, enrich academic metadata, and publish to the public library catalog.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowUploadModal(true)}
+            style={{
+              padding: '0.65rem 1.25rem',
+              background: 'var(--accent-primary)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontWeight: 700,
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <UploadCloud size={18} />
+            <span>+ Direct Upload to Telegram</span>
+          </button>
         </div>
 
         {message && (
@@ -292,6 +385,34 @@ function PendingQueueContent() {
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                         {(u.file_size / (1024 * 1024)).toFixed(1)} MB • {u.original_filename}
                       </div>
+                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginTop: '0.15rem' }}>
+                        <span
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: '4px',
+                            background: u.source_type === 'admin_upload' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(14, 165, 233, 0.12)',
+                            color: u.source_type === 'admin_upload' ? '#6366f1' : '#0284c7',
+                          }}
+                        >
+                          {u.source_type === 'admin_upload' ? 'Admin Direct' : 'Telegram Group'}
+                        </span>
+                        {u.is_duplicate && (
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              padding: '0.1rem 0.4rem',
+                              borderRadius: '4px',
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              color: '#d97706',
+                            }}
+                          >
+                            Duplicate
+                          </span>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
@@ -301,6 +422,29 @@ function PendingQueueContent() {
             {/* Right Review and Metadata Workspace */}
             {selectedUpload && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Duplicate Warning Banner */}
+                {selectedUpload.is_duplicate && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.75rem',
+                      padding: '1rem 1.25rem',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'rgba(245, 158, 11, 0.12)',
+                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      color: '#d97706',
+                    }}
+                  >
+                    <AlertTriangle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ fontSize: '0.875rem' }}>
+                      <strong>Duplicate File Content Detected</strong>
+                      <p style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)', fontSize: '0.825rem' }}>
+                        This PDF binary matches an existing upload in the system (file_unique_id fingerprint duplicate{selectedUpload.duplicate_of_id ? ` of ID ${selectedUpload.duplicate_of_id}` : ''}). Please verify whether this is an intended re-upload before approving to avoid redundant library entries.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {/* PDF Viewer Preview Container */}
                 <div
                   style={{
@@ -668,6 +812,290 @@ function PendingQueueContent() {
                   Confirm Rejection
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Direct Admin PDF Upload Modal */}
+        {showUploadModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 100,
+              padding: '1.5rem',
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                maxWidth: '560px',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-medium)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '1.75rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <UploadCloud size={20} color="var(--accent-primary)" />
+                  <span>Direct Upload to Telegram</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.25rem' }}
+                >
+                  &times;
+                </button>
+              </div>
+
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Upload a PDF directly from your computer. The binary will be uploaded straight to your Telegram central storage and queued in the review list.
+              </p>
+
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.4,
+                }}
+              >
+                <strong style={{ color: 'var(--accent-primary)' }}>Vercel Payload Limit (4 MB):</strong> Direct browser uploads are capped at 4 MB to ensure compatibility with Vercel Serverless Functions. For larger PDF files (up to 20 MB), simply post the document directly into your authorized Telegram Group or Channel—the bot webhook will automatically ingest it without size restrictions.
+              </div>
+
+              <form onSubmit={handleDirectUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                    Select PDF File * (max 4 MB)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    required
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      if (!f) {
+                        setUploadFile(null);
+                        return;
+                      }
+                      if (!f.name.toLowerCase().endsWith('.pdf')) {
+                        setMessage({ text: 'Selected file must have a .pdf extension', type: 'error' });
+                        e.target.value = '';
+                        setUploadFile(null);
+                        return;
+                      }
+                      if (f.size > 4 * 1024 * 1024) {
+                        setMessage({
+                          text: `Selected file is ${(f.size / (1024 * 1024)).toFixed(2)} MB. Direct uploads via Vercel are limited to 4 MB. For files between 4 MB and 20 MB, post directly into your authorized Telegram Group for automatic ingestion.`,
+                          type: 'error',
+                        });
+                        e.target.value = '';
+                        setUploadFile(null);
+                        return;
+                      }
+                      setUploadFile(f);
+                      if (!uploadTitle) {
+                        setUploadTitle(f.name.replace(/\.pdf$/i, '').replace(/[-_]/g, ' '));
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-medium)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                    Document Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Distributed Consensus Systems"
+                    value={uploadTitle}
+                    onChange={(e) => setUploadTitle(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-medium)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                    Primary Category
+                  </label>
+                  <select
+                    value={uploadCategory}
+                    onChange={(e) => setUploadCategory(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-medium)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                    Author / Attribution
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Leslie Lamport"
+                    value={uploadAuthor}
+                    onChange={(e) => setUploadAuthor(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-medium)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                    Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Short description or abstract..."
+                    value={uploadDesc}
+                    onChange={(e) => setUploadDesc(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-medium)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                      Tags (comma separated)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="algorithms, distributed"
+                      value={uploadTags}
+                      onChange={(e) => setUploadTags(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border-medium)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.875rem',
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                      Publication Year
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="2024"
+                      value={uploadYear}
+                      onChange={(e) => setUploadYear(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border-medium)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.875rem',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowUploadModal(false)}
+                    style={{
+                      padding: '0.6rem 1.25rem',
+                      background: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border-medium)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={uploadingDirect}
+                    style={{
+                      padding: '0.6rem 1.5rem',
+                      background: 'var(--accent-primary)',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      color: '#fff',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    {uploadingDirect ? <Loader2 className="animate-spin" size={16} /> : <UploadCloud size={16} />}
+                    <span>Upload to Telegram</span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

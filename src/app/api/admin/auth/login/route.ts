@@ -5,23 +5,35 @@ import {
   logAdminActivity,
   ADMIN_COOKIE_NAME,
 } from '@/lib/auth/adminAuth';
-import { checkRateLimit } from '@/lib/api/rateLimit';
+import { checkRateLimit, getClientIp } from '@/lib/api/rateLimit';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
 export async function POST(request: Request) {
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-    request.headers.get('x-real-ip') ||
-    '127.0.0.1';
+  const ip = getClientIp(request);
   const userAgent = request.headers.get('user-agent') || 'Unknown';
 
-  // Rate limiting: 5 login attempts per 15 minutes per IP
-  const rateLimit = checkRateLimit(`admin-login:${ip}`, 5, 15 * 60 * 1000);
+  // Distributed Rate Limiting: 5 login attempts per 15 minutes per IP (fail-closed brute-force protection)
+  const rateLimit = await checkRateLimit(`admin-login:${ip}`, 5, 15 * 60 * 1000, {
+    failClosed: true,
+    endpoint: 'admin-login',
+  });
   if (!rateLimit.success) {
-    return apiError(
-      'RATE_LIMIT_EXCEEDED',
-      'Too many failed login attempts. Please try again later.',
-      429
+    const retryAfter = Math.max(1, Math.ceil(rateLimit.resetMs / 1000));
+    return new NextResponse(
+      JSON.stringify({
+        success: false,
+        error: {
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'Too many login attempts. Please try again later.',
+        },
+      }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(retryAfter),
+        },
+      }
     );
   }
 

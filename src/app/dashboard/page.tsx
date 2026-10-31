@@ -5,28 +5,24 @@ import Link from 'next/link';
 import {
   BookOpen,
   FolderOpen,
-  FileText,
   BookMarked,
   Clock,
   ArrowRight,
   Sparkles,
-  Heart,
   Loader2,
   AlertCircle,
   Tag,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { Document, ReadingProgress, Note, Bookmark } from '@/lib/types/database';
+import { Document, ReadingProgress } from '@/lib/types/database';
 import { Sidebar } from '@/components/layout/Sidebar';
 import styles from './page.module.css';
 
 export default function DashboardPage() {
   const [recentProgress, setRecentProgress] = useState<{ progress: ReadingProgress; doc: Document }[]>([]);
   const [recentPublished, setRecentPublished] = useState<Document[]>([]);
-  const [recentNotes, setRecentNotes] = useState<Note[]>([]);
-  const [favoriteDocs, setFavoriteDocs] = useState<Document[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [counts, setCounts] = useState({ documents: 0, notes: 0, bookmarks: 0, activeMinutes: 0 });
+  const [counts, setCounts] = useState({ documents: 0, bookmarks: 0, activeMinutes: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,11 +33,10 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const [progressRes, myDocsRes, publicDocsRes, notesRes, bookmarksRes] = await Promise.allSettled([
+        const [progressRes, myDocsRes, publicDocsRes, bookmarksRes] = await Promise.allSettled([
           api.readingProgress.list(),
           api.documents.getMine({ limit: 12 }),
           api.documents.getPublic({ limit: 6, sort: 'created_at', order: 'desc' }),
-          api.notes.list({ is_favorite: undefined }),
           api.bookmarks.list(),
         ]);
 
@@ -72,28 +67,17 @@ export default function DashboardPage() {
           setCategories(Array.from(catsSet).slice(0, 6));
         }
 
-        let myDocs: Document[] = [];
-        if (myDocsRes.status === 'fulfilled') {
-          myDocs = myDocsRes.value.documents || [];
-          setFavoriteDocs(myDocs.filter((d: Document) => d.is_favorite).slice(0, 4));
-        }
-
-        const notes = notesRes.status === 'fulfilled' ? notesRes.value.notes : [];
-        setRecentNotes(notes.slice(0, 4));
-
         const docCount = myDocsRes.status === 'fulfilled' ? myDocsRes.value.total : 0;
-        const noteCount = notesRes.status === 'fulfilled' ? notesRes.value.total : 0;
         const bmCount = bookmarksRes.status === 'fulfilled' ? bookmarksRes.value.total : 0;
 
         setCounts({
           documents: docCount,
-          notes: noteCount,
           bookmarks: bmCount,
           activeMinutes: Math.floor(totalActiveSeconds / 60),
         });
       } catch (err: any) {
         if (!isMounted) return;
-        setError(err.message || 'Failed to load dashboard data');
+        setError(err.message || 'Failed to load feed data');
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -120,9 +104,9 @@ export default function DashboardPage() {
       <main className={styles.mainContent}>
         <div className={styles.welcomeRow}>
           <div>
-            <h1 className={styles.welcomeTitle}>Personal Study Dashboard</h1>
+            <h1 className={styles.welcomeTitle}>Your Reading Feed</h1>
             <p className={styles.welcomeSubtitle}>
-              Pick up where you left off, explore recently published study materials, and review your notes.
+              Pick up where you left off, explore recently published materials, and discover documents.
             </p>
           </div>
 
@@ -162,13 +146,6 @@ export default function DashboardPage() {
             <div>
               <div className={styles.statNumber}>{loading ? '...' : counts.documents}</div>
               <div className={styles.statName}>Library Documents</div>
-            </div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statIcon}><FileText size={22} /></div>
-            <div>
-              <div className={styles.statNumber}>{loading ? '...' : counts.notes}</div>
-              <div className={styles.statName}>Study Notes</div>
             </div>
           </div>
           <div className={styles.statCard}>
@@ -348,39 +325,6 @@ export default function DashboardPage() {
             </div>
           </section>
         )}
-
-        {/* Recent Study Notes */}
-        <section>
-          <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>Recent Study Notes</h2>
-            <Link href="/notes" className={styles.sectionLink}>View All Notes</Link>
-          </div>
-
-          {loading ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 0.5rem' }} />
-              <p>Loading study notes...</p>
-            </div>
-          ) : recentNotes.length === 0 ? (
-            <div style={{ padding: '2rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', textAlign: 'center', color: 'var(--text-secondary)' }}>
-              No notes created yet. Create your first note in <Link href="/notes" style={{ color: 'var(--accent-primary)' }}>Study Notes</Link>.
-            </div>
-          ) : (
-            <div className={styles.notesList}>
-              {recentNotes.map((note) => (
-                <Link key={note.id} href="/notes" className={styles.noteItem}>
-                  <h3 className={styles.noteTitle}>{note.title}</h3>
-                  <p className={styles.noteSnippet}>
-                    {note.content_html.replace(/<[^>]+>/g, ' ') || 'No content yet...'}
-                  </p>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 'auto' }}>
-                    {note.document_title ? `Linked to ${note.document_title}` : 'Independent Note'}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
       </main>
     </div>
   );

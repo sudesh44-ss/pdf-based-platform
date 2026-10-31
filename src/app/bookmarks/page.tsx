@@ -40,7 +40,7 @@ export default function BookmarksPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: 'calc(100vh - var(--header-height))', width: '100%' }}>
-      <Sidebar counts={{ documents: 0, notes: 0, bookmarks: bookmarks.length }} />
+      <Sidebar counts={{ documents: 0, bookmarks: bookmarks.length }} />
 
       <main style={{ flex: 1, padding: '2.5rem', maxWidth: '1000px', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <div>

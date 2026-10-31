@@ -1,5 +1,6 @@
 import { getVerifiedAdminSession, logAdminActivity } from '@/lib/auth/adminAuth';
 import { getAdminClient } from '@/lib/supabase/admin';
+import { deleteDocumentEverywhere } from '@/lib/services/telegramService';
 import { apiSuccess, apiError } from '@/lib/api/response';
 
 export async function PATCH(
@@ -52,7 +53,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getVerifiedAdminSession();
@@ -61,12 +62,28 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  const { searchParams } = new URL(request.url);
+  const everywhere = searchParams.get('everywhere') === 'true';
+
+  if (everywhere) {
+    const result = await deleteDocumentEverywhere(id, session.username);
+    if (!result.success) {
+      return apiError('DELETE_FAILED', result.error || 'Failed to delete document', 500);
+    }
+    return apiSuccess(
+      { deleted: true, telegram_deleted: result.telegramDeleted, telegram_warning: result.error },
+      result.telegramDeleted
+        ? 'Document deleted from database and Telegram message removed'
+        : 'Document removed from database (Telegram message could not be deleted automatically)'
+    );
+  }
+
+  // Soft delete document locally
   const adminClient = getAdminClient();
   if (!adminClient) {
     return apiError('CONFIGURATION_ERROR', 'Admin database client unavailable', 503);
   }
 
-  // Soft delete document
   const { data, error } = await adminClient
     .from('documents')
     .update({

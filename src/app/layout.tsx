@@ -7,8 +7,8 @@ import { Footer } from '@/components/layout/Footer';
 import { MobileNav } from '@/components/layout/MobileNav';
 
 export const metadata: Metadata = {
-  title: 'SmartPDF — Digital Library, Reader & Study Workspace',
-  description: 'Smart screenshot reading mode, code focus, background OCR, Tiptap study notes, and encrypted Telegram cloud backups.',
+  title: 'OpenShelf — Digital Library & PDF Reader',
+  description: 'Smart screenshot reading mode, code focus, high-performance reader, and curated technical document library.',
 };
 
 export default function RootLayout({

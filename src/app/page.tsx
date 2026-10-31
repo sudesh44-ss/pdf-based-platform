@@ -8,8 +8,8 @@ import {
   Crop,
   Code2,
   ScanSearch,
-  FileEdit,
-  HardDrive,
+  BookMarked,
+  Send,
   ShieldCheck,
   ArrowRight,
   TrendingUp,
@@ -55,7 +55,7 @@ export default function HomePage() {
 
         <p className={styles.heroSubtitle}>
           Built for software engineers, students, and technical researchers. Experience smart crop viewing,
-          code editor magnification, non-blocking page OCR, linked Tiptap study notes, and decentralized Telegram cloud backups.
+          code editor magnification, high-performance PDF reading, bookmarks, and curated document libraries.
         </p>
 
         <div className={styles.ctaGroup}>
@@ -64,7 +64,7 @@ export default function HomePage() {
             <span>Browse Public Library</span>
           </Link>
           <Link href="/dashboard" className={styles.secondaryCta}>
-            <span>Open Study Dashboard</span>
+            <span>Open Reading Feed</span>
             <ArrowRight size={16} />
           </Link>
         </div>
@@ -83,8 +83,8 @@ export default function HomePage() {
             <span className={styles.statLabel}>Client-Side Canvas Engine</span>
           </div>
           <div className={styles.statItem}>
-            <span className={styles.statValue}>Tiptap</span>
-            <span className={styles.statLabel}>Page-Linked Notes</span>
+            <span className={styles.statValue}>Sync</span>
+            <span className={styles.statLabel}>Reading Progress &amp; Bookmarks</span>
           </div>
         </div>
       </section>
@@ -148,29 +148,29 @@ export default function HomePage() {
             <div className={styles.featureIcon}>
               <ScanSearch size={24} />
             </div>
-            <h3 className={styles.featureTitle}>Non-Blocking Page OCR</h3>
+            <h3 className={styles.featureTitle}>Full-Text PDF Search</h3>
             <p className={styles.featureText}>
-              Background OCR using Tesseract.js recognizes unselectable text from mobile screenshot PDFs and indexes words with page-coordinate navigation.
+              High-fidelity native text selection, instant term search, and coordinate-aware page navigation powered by PDF.js.
             </p>
           </div>
 
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>
-              <FileEdit size={24} />
+              <BookMarked size={24} />
             </div>
-            <h3 className={styles.featureTitle}>Tiptap Study Notes</h3>
+            <h3 className={styles.featureTitle}>Saved Bookmarks</h3>
             <p className={styles.featureText}>
-              Rich-text notes with code blocks, headings, and lists. Attach notes directly to specific pages or maintain independent notebooks.
+              Keep track of important pages across your reading sessions with one-click page bookmarks synchronized to your profile.
             </p>
           </div>
 
           <div className={styles.featureCard}>
             <div className={styles.featureIcon}>
-              <HardDrive size={24} />
+              <Send size={24} />
             </div>
-            <h3 className={styles.featureTitle}>Telegram Cloud Storage</h3>
+            <h3 className={styles.featureTitle}>Telegram Bot Ingestion</h3>
             <p className={styles.featureText}>
-              Decentralized cloud backup adapter utilizing Telegram Bot API with SHA-256 cryptographic integrity verification and restore streams.
+              Verified publishing pipeline utilizing Telegram Bot API with SHA-256 cryptographic integrity verification and admin moderation.
             </p>
           </div>
 

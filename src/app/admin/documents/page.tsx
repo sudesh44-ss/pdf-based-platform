@@ -67,15 +67,40 @@ export default function AdminAllDocumentsPage() {
   };
 
   const handleDelete = async (doc: Document) => {
-    if (!confirm(`Delete "${doc.title}"?`)) return;
+    if (!confirm(`Soft-delete "${doc.title}" from library catalog?`)) return;
 
     try {
       const res = await fetch(`/api/admin/documents/${doc.id}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error?.message || 'Delete failed');
 
-      setSuccess(`"${doc.title}" removed.`);
+      setSuccess(`"${doc.title}" removed from catalog.`);
       setTimeout(() => setSuccess(null), 3000);
+      fetchDocs();
+    } catch (err: any) {
+      setError(err.message || 'Error deleting document');
+    }
+  };
+
+  const handleDeleteEverywhere = async (doc: Document) => {
+    if (
+      !confirm(
+        `Delete "${doc.title}" EVERYWHERE?\n\nThis will remove the document from OpenShelf and attempt to permanently delete the stored message from Telegram.`
+      )
+    )
+      return;
+
+    try {
+      const res = await fetch(`/api/admin/documents/${doc.id}?everywhere=true`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error?.message || 'Delete failed');
+
+      if (data.data?.telegram_deleted) {
+        setSuccess(`"${doc.title}" deleted from library and Telegram message deleted.`);
+      } else {
+        setSuccess(`"${doc.title}" removed from catalog (Note: Telegram message could not be deleted automatically).`);
+      }
+      setTimeout(() => setSuccess(null), 4000);
       fetchDocs();
     } catch (err: any) {
       setError(err.message || 'Error deleting document');
@@ -271,6 +296,7 @@ export default function AdminAllDocumentsPage() {
 
                           <button
                             type="button"
+                            title="Soft delete from library"
                             onClick={() => handleDelete(doc)}
                             style={{
                               padding: '0.35rem 0.6rem',
@@ -289,6 +315,30 @@ export default function AdminAllDocumentsPage() {
                             <Trash2 size={12} />
                             <span>Delete</span>
                           </button>
+
+                          {doc.telegram_chat_id && doc.telegram_message_id && (
+                            <button
+                              type="button"
+                              title="Delete from database and Telegram storage"
+                              onClick={() => handleDeleteEverywhere(doc)}
+                              style={{
+                                padding: '0.35rem 0.6rem',
+                                background: 'rgba(239, 68, 68, 0.16)',
+                                border: '1px solid #ef4444',
+                                color: '#ef4444',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                              }}
+                            >
+                              <Trash2 size={12} />
+                              <span>Delete Everywhere</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

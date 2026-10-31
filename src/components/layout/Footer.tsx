@@ -30,22 +30,20 @@ export function Footer() {
         </div>
 
         <div>
-          <h4 className={styles.colTitle}>Library & Workspace</h4>
+          <h4 className={styles.colTitle}>Library</h4>
           <ul className={styles.linkList}>
+            <li><Link href="/dashboard" className={styles.footerLink}>Feed</Link></li>
             <li><Link href="/library" className={styles.footerLink}>Public Library</Link></li>
-            <li><Link href="/dashboard" className={styles.footerLink}>Personal Dashboard</Link></li>
             <li><Link href="/my-library" className={styles.footerLink}>My Documents</Link></li>
-            <li><Link href="/notes" className={styles.footerLink}>Study Notes</Link></li>
-            <li><Link href="/notebooks" className={styles.footerLink}>Notebooks</Link></li>
-            <li><Link href="/search" className={styles.footerLink}>OCR Full-Text Search</Link></li>
+            <li><Link href="/bookmarks" className={styles.footerLink}>Saved Bookmarks</Link></li>
+            <li><Link href="/search" className={styles.footerLink}>Full-Text Search</Link></li>
           </ul>
         </div>
 
         <div>
-          <h4 className={styles.colTitle}>Features & Operations</h4>
+          <h4 className={styles.colTitle}>Features &amp; Operations</h4>
           <ul className={styles.linkList}>
             <li><Link href="/my-contributions" className={styles.footerLink}>Submit PDF</Link></li>
-            <li><Link href="/storage" className={styles.footerLink}>Telegram Cloud Backup</Link></li>
             <li><Link href="/statistics" className={styles.footerLink}>Reading Analytics</Link></li>
             <li><Link href="/settings" className={styles.footerLink}>Reader Preferences</Link></li>
             <li><Link href="/admin" className={styles.footerLink}>Admin Moderation</Link></li>
@@ -65,7 +63,7 @@ export function Footer() {
       </div>
 
       <div className={styles.bottomBar}>
-        <p>© 2026 SmartPDF. Non-blocking OCR, Custom CSS design, and encrypted cloud backups.</p>
+        <p>© 2026 OpenShelf. Custom CSS design and secure PDF reading platform.</p>
         <p>Built with Next.js App Router, React 19 & PDF.js</p>
       </div>
     </footer>

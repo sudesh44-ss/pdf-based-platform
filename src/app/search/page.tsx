@@ -6,10 +6,8 @@ import Link from 'next/link';
 import {
   Search as SearchIcon,
   BookOpen,
-  ScanText,
   FileText,
   ArrowRight,
-  Info,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { Document } from '@/lib/types/database';
@@ -19,7 +17,6 @@ interface SearchResultMatch {
   doc: Document;
   pageNumber: number;
   snippet: string;
-  isOcr: boolean;
 }
 
 function SearchContent() {
@@ -43,7 +40,6 @@ function SearchContent() {
         doc,
         pageNumber: 1,
         snippet: doc.description || doc.title,
-        isOcr: false,
       }));
       setResults(matches);
       setSearched(true);
@@ -69,9 +65,9 @@ function SearchContent() {
 
       <main style={{ flex: 1, padding: '2.5rem', maxWidth: '1100px', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>Combined Native &amp; OCR Search</h1>
+          <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>Library &amp; Document Search</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '0.25rem' }}>
-            Query searchable PDF vectors, scanned screenshot text, and study notes simultaneously.
+            Search documents across titles, descriptions, categories, authors, and study materials.
           </p>
         </div>
 
@@ -118,26 +114,6 @@ function SearchContent() {
           ))}
         </div>
 
-        {/* OCR Accuracy Disclaimer */}
-        <div
-          style={{
-            padding: '0.85rem 1.25rem',
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.6rem',
-            fontSize: '0.825rem',
-            color: 'var(--text-muted)',
-          }}
-        >
-          <Info size={15} color="var(--accent-warning)" style={{ flexShrink: 0 }} />
-          <span>
-            OCR Disclaimer: Optical Character Recognition is experimental and accuracy varies on low-resolution mobile screenshots. Code extracted from screenshots is not verified source code.
-          </span>
-        </div>
-
         {/* Results */}
         {searched && (
           <section>
@@ -175,12 +151,12 @@ function SearchContent() {
                             fontSize: '0.72rem',
                             padding: '0.15rem 0.45rem',
                             borderRadius: 'var(--radius-full)',
-                            background: res.isOcr ? 'var(--accent-secondary-light)' : 'var(--accent-primary-light)',
-                            color: res.isOcr ? 'var(--accent-secondary)' : 'var(--accent-primary)',
+                            background: 'var(--accent-primary-light)',
+                            color: 'var(--accent-primary)',
                             fontWeight: 600,
                           }}
                         >
-                          {res.isOcr ? 'OCR Extracted Page Match' : 'Metadata Match'}
+                          Document Match
                         </span>
                       </div>
 

@@ -13,9 +13,7 @@ import {
   Minimize2,
   Crop,
   Code2,
-  ScanText,
   Bookmark,
-  FileText,
   Sidebar as SidebarIcon,
   RotateCcw,
   Rows3,
@@ -31,8 +29,6 @@ interface ReaderToolbarProps {
   viewMode: ViewMode;
   isSmartCrop: boolean;
   isBookmarked: boolean;
-  isOcrRunning: boolean;
-  notesOpen: boolean;
   thumbnailsOpen: boolean;
   isFullscreen: boolean;
   onPageChange: (page: number) => void;
@@ -42,9 +38,7 @@ interface ReaderToolbarProps {
   onToggleViewMode: () => void;
   onToggleSmartCrop: () => void;
   onOpenCodeFocus: () => void;
-  onRunOcr: () => void;
   onToggleBookmark: () => void;
-  onToggleNotes: () => void;
   onToggleThumbnails: () => void;
   onToggleFullscreen: () => void;
 }
@@ -57,8 +51,6 @@ export function ReaderToolbar({
   viewMode,
   isSmartCrop,
   isBookmarked,
-  isOcrRunning,
-  notesOpen,
   thumbnailsOpen,
   isFullscreen,
   onPageChange,
@@ -68,9 +60,7 @@ export function ReaderToolbar({
   onToggleViewMode,
   onToggleSmartCrop,
   onOpenCodeFocus,
-  onRunOcr,
   onToggleBookmark,
-  onToggleNotes,
   onToggleThumbnails,
   onToggleFullscreen,
 }: ReaderToolbarProps) {
@@ -194,16 +184,6 @@ export function ReaderToolbar({
           <Code2 size={16} />
         </button>
 
-        {/* OCR Page Button */}
-        <button
-          type="button"
-          className={`${styles.toolBtn} ${isOcrRunning ? styles.badgeActive : ''}`}
-          onClick={onRunOcr}
-          title="Run Background OCR on Current Page"
-        >
-          <ScanText size={16} />
-        </button>
-
         {/* Bookmark Button */}
         <button
           type="button"
@@ -216,15 +196,6 @@ export function ReaderToolbar({
       </div>
 
       <div className={styles.rightGroup}>
-        <button
-          type="button"
-          className={`${styles.toolBtn} ${notesOpen ? styles.toolBtnActive : ''}`}
-          onClick={onToggleNotes}
-          title="Toggle Study Notes Panel (N)"
-        >
-          <FileText size={17} />
-        </button>
-
         <button
           type="button"
           className={styles.toolBtn}
