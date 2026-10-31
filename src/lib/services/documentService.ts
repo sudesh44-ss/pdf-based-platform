@@ -30,10 +30,7 @@ export async function getDocuments(
   const limit = Math.min(100, Math.max(1, options.limit || 20));
   const offset = (page - 1) * limit;
 
-  const CATALOG_COLUMNS =
-    'id, title, description, file_name, file_size, mime_type, page_count, categories, tags, is_public, status, cover_image_url, thumbnail_url, likes_count, views_count, downloads_count, created_at, updated_at, user_id, contributor_name, author, publication_year, language';
-
-  let query = supabase.from('documents').select(CATALOG_COLUMNS, { count: 'exact' });
+  let query = supabase.from('documents').select('*', { count: 'exact' });
 
   // Public vs Private library filters
   if (options.isPublic) {
@@ -74,7 +71,7 @@ export async function getDocuments(
   }
 
   const total = count || 0;
-  const docs = (data || []) as unknown as Document[];
+  const docs = (data || []) as Document[];
 
   return {
     documents: docs,
@@ -105,7 +102,7 @@ export async function getDocumentById(
 
   // Authorization check
   const isOwner = userId && doc.user_id === userId;
-  const isAccessiblePublic = doc.is_public && doc.status === 'published' && !doc.is_trash;
+  const isAccessiblePublic = doc.is_public && doc.status === 'published' && !doc.is_trash && !doc.is_deleted;
 
   if (!isAccessiblePublic && !isOwner && !isAdmin) {
     return null;
