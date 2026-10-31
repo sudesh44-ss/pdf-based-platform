@@ -118,6 +118,15 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
   const conflicts: any[] = [];
 
+  const successfulNoteIds: string[] = [];
+  const failedNotes: { id: string; error: string }[] = [];
+
+  const successfulProgressDocIds: string[] = [];
+  const failedProgress: { document_id: string; error: string }[] = [];
+
+  const successfulHistoryIds: string[] = [];
+  const failedHistory: { id: string; error: string }[] = [];
+
   try {
     // 1. Process dirty notes
     for (const note of dirtyNotes) {
@@ -125,11 +134,20 @@ export async function POST(request: Request) {
 
       if (note.is_deleted) {
         // Soft tombstone -> delete from cloud
-        await supabase
-          .from('notes')
-          .delete()
-          .eq('id', note.id)
-          .eq('user_id', user.id);
+        try {
+          const { error: delErr } = await supabase
+            .from('notes')
+            .delete()
+            .eq('id', note.id)
+            .eq('user_id', user.id);
+          if (delErr) {
+            failedNotes.push({ id: note.id, error: delErr.message });
+          } else {
+            successfulNoteIds.push(note.id);
+          }
+        } catch (delCatch: any) {
+          failedNotes.push({ id: note.id, error: delCatch.message || 'Delete note failed' });
+        }
         continue;
       }
 
@@ -175,12 +193,19 @@ export async function POST(request: Request) {
         updated_at: now,
       };
 
-      const { error: upsertErr } = await supabase
-        .from('notes')
-        .upsert(notePayload, { onConflict: 'id' });
+      try {
+        const { error: upsertErr } = await supabase
+          .from('notes')
+          .upsert(notePayload, { onConflict: 'id' });
 
-      if (upsertErr) {
-        console.warn('Note upsert warning:', upsertErr.message);
+        if (upsertErr) {
+          console.warn('Note upsert warning:', upsertErr.message);
+          failedNotes.push({ id: note.id, error: upsertErr.message });
+        } else {
+          successfulNoteIds.push(note.id);
+        }
+      } catch (upsertCatch: any) {
+        failedNotes.push({ id: note.id, error: upsertCatch.message || 'Note upsert failed' });
       }
     }
 
@@ -203,8 +228,13 @@ export async function POST(request: Request) {
           },
           user.id
         );
+        successfulProgressDocIds.push(prog.document_id);
       } catch (pErr: any) {
         console.warn('Progress upsert warning:', pErr.message);
+        failedProgress.push({
+          document_id: prog.document_id,
+          error: pErr.message || 'Progress upsert failed',
+        });
       }
     }
 
@@ -213,7 +243,7 @@ export async function POST(request: Request) {
       if (!hist.id || !hist.document_id) continue;
 
       try {
-        await supabase.from('reading_history').upsert(
+        const { error: hErr } = await supabase.from('reading_history').upsert(
           {
             id: hist.id,
             user_id: user.id,
@@ -224,12 +254,23 @@ export async function POST(request: Request) {
           },
           { onConflict: 'id' }
         );
-      } catch {
-        // Safe to ignore if table does not exist
+        if (hErr) {
+          if (hErr.code === '42P01' || hErr.message?.includes('does not exist')) {
+            // Gracefully ignore optional missing table in legacy databases
+            successfulHistoryIds.push(hist.id);
+          } else {
+            console.warn('History upsert warning:', hErr.message);
+            failedHistory.push({ id: hist.id, error: hErr.message });
+          }
+        } else {
+          successfulHistoryIds.push(hist.id);
+        }
+      } catch (hErr: any) {
+        failedHistory.push({ id: hist.id, error: hErr.message || 'History upsert failed' });
       }
     }
 
-    // 4. Update sync metadata
+    // 4. Update sync metadata (only if not completely failed)
     try {
       await supabase.from('user_sync_meta').upsert(
         {
@@ -266,10 +307,79 @@ export async function POST(request: Request) {
       if (h) freshHistory = h;
     } catch {}
 
+    // Calculate per-category and overall sync metrics
+    const notesStatus: 'synced' | 'partial' | 'failed' =
+      dirtyNotes.length === 0
+        ? 'synced'
+        : failedNotes.length === 0
+        ? 'synced'
+        : successfulNoteIds.length > 0
+        ? 'partial'
+        : 'failed';
+
+    const progressStatus: 'synced' | 'partial' | 'failed' =
+      dirtyProgress.length === 0
+        ? 'synced'
+        : failedProgress.length === 0
+        ? 'synced'
+        : successfulProgressDocIds.length > 0
+        ? 'partial'
+        : 'failed';
+
+    const historyStatus: 'synced' | 'partial' | 'failed' =
+      dirtyHistory.length === 0
+        ? 'synced'
+        : failedHistory.length === 0
+        ? 'synced'
+        : successfulHistoryIds.length > 0
+        ? 'partial'
+        : 'failed';
+
+    const totalFailed = failedNotes.length + failedProgress.length + failedHistory.length;
+    const totalAttempted = dirtyNotes.length + dirtyProgress.length + dirtyHistory.length;
+    const totalSuccessful =
+      successfulNoteIds.length + successfulProgressDocIds.length + successfulHistoryIds.length;
+
+    const overallStatus: 'success' | 'partial' | 'failed' =
+      totalFailed === 0
+        ? 'success'
+        : totalSuccessful > 0
+        ? 'partial'
+        : 'failed';
+
+    const isFullySynced = overallStatus === 'success';
+
     return apiSuccess({
-      synced: true,
+      synced: isFullySynced,
+      overallStatus,
       serverTimestamp: now,
       conflicts,
+      categories: {
+        notes: {
+          status: notesStatus,
+          total: dirtyNotes.length,
+          synced: successfulNoteIds.length,
+          failed: failedNotes.length,
+        },
+        readingProgress: {
+          status: progressStatus,
+          total: dirtyProgress.length,
+          synced: successfulProgressDocIds.length,
+          failed: failedProgress.length,
+        },
+        readingHistory: {
+          status: historyStatus,
+          total: dirtyHistory.length,
+          synced: successfulHistoryIds.length,
+          failed: failedHistory.length,
+        },
+      },
+      successfulNoteIds,
+      successfulProgressDocIds,
+      successfulHistoryIds,
+      failedNotes,
+      failedProgress,
+      failedHistory,
       notes: freshNotes || [],
       readingProgress: freshProgress || [],
       readingHistory: freshHistory,

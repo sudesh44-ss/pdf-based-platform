@@ -33,14 +33,17 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         // Ignored
       }
 
-      // 2. Check Admin session
+      // 2. Check Admin session via resilient getMe()
       try {
-        const res = await fetch('/api/admin/auth/me');
-        if (!res.ok) throw new Error('Not authenticated');
-        const data = await res.json();
+        const adminMe = await api.adminAuth.getMe();
         if (mounted) {
-          setUsername(data.data?.username || 'Administrator');
-          setAuthorized(true);
+          if (adminMe.authenticated && adminMe.username) {
+            setUsername(adminMe.username);
+            setAuthorized(true);
+          } else {
+            setAuthorized(false);
+            router.replace('/admin/login');
+          }
         }
       } catch {
         if (mounted) {
@@ -68,7 +71,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         onCancel={() => router.push('/dashboard')}
         onSwitchSuccess={() => {
           setNormalUser(null);
-          router.refresh();
+          window.location.reload();
         }}
       />
     );

@@ -91,8 +91,7 @@ export function AccountSwitchModal({
           onSwitchSuccess();
         } else {
           const dest = nextUrl || '/admin/login';
-          router.push(dest);
-          router.refresh();
+          window.location.href = dest;
         }
       } else {
         // Switching to Normal User: Terminate Admin session on this browser only
@@ -102,8 +101,7 @@ export function AccountSwitchModal({
           onSwitchSuccess();
         } else {
           const dest = nextUrl || '/auth/login';
-          router.push(dest);
-          router.refresh();
+          window.location.href = dest;
         }
       }
     } catch (err: any) {

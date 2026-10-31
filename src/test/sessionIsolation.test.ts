@@ -63,7 +63,6 @@ describe('OpenShelf — Admin and Normal User Session Isolation Security Suite',
 
   describe('1. Normal User Logged In → Admin Login & URL Protection', () => {
     it('Scenario 1: Rejects Admin login API with HTTP 409 SESSION_CONFLICT when a Normal User is active', async () => {
-      // Mock active Normal User session
       const mockUserSupabase = {
         auth: {
           getUser: vi.fn().mockResolvedValue({
@@ -145,7 +144,6 @@ describe('OpenShelf — Admin and Normal User Session Isolation Security Suite',
     });
 
     it('Scenario 5: Rejects Normal User attempting protected Admin API access with HTTP 401 UNAUTHORIZED', async () => {
-      // Normal user does not have smartpdf_admin_session cookie
       const req = new NextRequest('http://localhost:3000/api/admin/documents');
       const res = await middleware(req);
 
@@ -193,7 +191,6 @@ describe('OpenShelf — Admin and Normal User Session Isolation Security Suite',
     });
 
     it('Scenario 7: Rejects Admin session attempting Normal User-only API (/api/profile) with HTTP 401', async () => {
-      // Supabase server client returns null user even if admin cookie is present
       const mockSupabase = {
         auth: {
           getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: new Error('No user session') }),
@@ -208,18 +205,111 @@ describe('OpenShelf — Admin and Normal User Session Isolation Security Suite',
     });
   });
 
-  describe('3. Account Switching & Cancellation Lifecycle', () => {
+  describe('3. Admin Logout Reliability & No 401 Errors', () => {
+    it('Admin logout succeeds with HTTP 200 and clears cookie when session is active', async () => {
+      (getVerifiedAdminSession as any).mockResolvedValue({ valid: true, username: 'admin_active' });
+      (revokeCurrentAdminSession as any).mockResolvedValue(true);
+
+      const req = new Request('http://localhost:3000/api/admin/auth/logout', { method: 'POST' });
+      const res = await handleAdminLogout(req);
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.data.loggedOut).toBe(true);
+      const setCookie = res.headers.get('set-cookie');
+      expect(setCookie).toContain('smartpdf_admin_session=;');
+    });
+
+    it('Admin logout succeeds with HTTP 200 and clears cookie even if session is already expired or invalid', async () => {
+      (getVerifiedAdminSession as any).mockResolvedValue({ valid: false });
+      (revokeCurrentAdminSession as any).mockResolvedValue(false);
+
+      const req = new Request('http://localhost:3000/api/admin/auth/logout', { method: 'POST' });
+      const res = await handleAdminLogout(req);
+
+      // Must NOT fail with 401 Unauthorized
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.data.loggedOut).toBe(true);
+      const setCookie = res.headers.get('set-cookie');
+      expect(setCookie).toContain('smartpdf_admin_session=;');
+    });
+
+    it('Middleware allows /api/admin/auth/logout without requiring valid admin session token', async () => {
+      const req = new NextRequest('http://localhost:3000/api/admin/auth/logout', { method: 'POST' });
+      const res = await middleware(req);
+      // Middleware must allow logout through without throwing 401
+      expect(res.status).not.toBe(401);
+    });
+
+    it('/api/admin/auth/me returns authenticated: false with HTTP 200 when no admin session is present', async () => {
+      (getVerifiedAdminSession as any).mockResolvedValue({ valid: false });
+
+      const req = new Request('http://localhost:3000/api/admin/auth/me');
+      const res = await handleAdminMe(req);
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.data.authenticated).toBe(false);
+      expect(json.data.username).toBeNull();
+    });
+  });
+
+  describe('4. No Redirect Loops & Route Transition Safety', () => {
+    it('/auth/switch is never redirected by middleware regardless of session state', async () => {
+      (createServerClient as any).mockReturnValue({
+        auth: {
+          getUser: vi.fn().mockResolvedValue({
+            data: { user: { id: 'usr_normal_123' } },
+          }),
+        },
+      });
+
+      const req = new NextRequest('http://localhost:3000/auth/switch?target=admin');
+      req.cookies.set('smartpdf_admin_session', 'token_present');
+
+      const res = await middleware(req);
+      // Must not redirect to another URL
+      expect(res.status).not.toBe(307);
+      expect(res.status).not.toBe(308);
+    });
+
+    it('Normal user accessing /dashboard does NOT get redirected', async () => {
+      (createServerClient as any).mockReturnValue({
+        auth: {
+          getUser: vi.fn().mockResolvedValue({
+            data: { user: { id: 'usr_normal_123' } },
+          }),
+        },
+      });
+
+      const req = new NextRequest('http://localhost:3000/dashboard');
+      const res = await middleware(req);
+      expect(res.status).not.toBe(307);
+    });
+
+    it('Admin user accessing /admin does NOT get redirected to switch', async () => {
+      (createServerClient as any).mockReturnValue({
+        auth: {
+          getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+        },
+      });
+
+      const req = new NextRequest('http://localhost:3000/admin');
+      req.cookies.set('smartpdf_admin_session', 'valid_token');
+
+      const res = await middleware(req);
+      expect(res.status).not.toBe(307);
+    });
+  });
+
+  describe('5. Account Switching & Cancellation Lifecycle', () => {
     it('Scenario 8: Cancel account switching preserves existing session state untouched', () => {
-      // In the client AccountSwitchModal, Cancel calls onCancel() which redirects
-      // the user back to their active view (e.g. /dashboard or /admin) without
-      // making any logout API calls or touching IndexedDB.
       const normalUserActive = { id: 'usr_keep_123' };
       const onCancel = vi.fn();
 
-      // Trigger cancel
       onCancel();
       expect(onCancel).toHaveBeenCalledTimes(1);
-      // Session remains fully preserved
       expect(normalUserActive.id).toBe('usr_keep_123');
     });
 
@@ -236,8 +326,6 @@ describe('OpenShelf — Admin and Normal User Session Isolation Security Suite',
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json.data.loggedOut).toBe(true);
-
-      // CRITICAL: Must use scope: 'local' to avoid terminating other devices
       expect(mockSignOut).toHaveBeenCalledWith({ scope: 'local' });
     });
 
@@ -250,24 +338,20 @@ describe('OpenShelf — Admin and Normal User Session Isolation Security Suite',
 
       expect(res.status).toBe(200);
       expect(revokeCurrentAdminSession).toHaveBeenCalledTimes(1);
-      // Admin cookie must be deleted on response
       const setCookie = res.headers.get('set-cookie');
       expect(setCookie).toContain('smartpdf_admin_session=;');
     });
   });
 
-  describe('4. Independent Device Sessions (PC vs Mobile)', () => {
+  describe('6. Independent Device Sessions (PC vs Mobile)', () => {
     it('Scenario 10: PC logout with scope local does NOT revoke Mobile user session', async () => {
       const pcSignOut = vi.fn().mockResolvedValue({ error: null });
       const pcSupabase = { auth: { signOut: pcSignOut } };
       (createClient as any).mockResolvedValue(pcSupabase);
 
       await handleUserLogout();
-
-      // Verify scope was local
       expect(pcSignOut).toHaveBeenCalledWith({ scope: 'local' });
 
-      // Mobile session token verification continues to pass independently
       const mobileSessionToken = 'mobile_valid_jwt_token';
       const mobileVerify = vi.fn().mockReturnValue({ valid: true, userId: 'usr_same_account' });
       expect(mobileVerify(mobileSessionToken).valid).toBe(true);
@@ -292,25 +376,22 @@ describe('OpenShelf — Admin and Normal User Session Isolation Security Suite',
       };
       (getAdminClient as any).mockReturnValue(mockAdminClient);
 
-      // Revoke PC session
       const pcHash = `hash_${pcToken}`;
       mockAdminClient.from().update({ revoked_at: new Date().toISOString() }).eq('token_hash', pcHash);
 
-      // Verifications:
       expect(revokedHashes.has(pcHash)).toBe(true);
-      expect(revokedHashes.has(`hash_${mobileToken}`)).toBe(false); // Mobile admin session untouched!
+      expect(revokedHashes.has(`hash_${mobileToken}`)).toBe(false);
     });
   });
 
-  describe('5. Non-Regression: Existing Login & Telegram Workflow', () => {
+  describe('7. Non-Regression: Existing Login & Telegram Workflow', () => {
     it('Scenario 12: Normal User login sanitizes redirects and preserves Google OAuth destinations', () => {
       expect(isProtectedPath('/dashboard')).toBe(true);
       expect(isProtectedPath('/my-library')).toBe(true);
-      expect(isProtectedPath('/library')).toBe(false); // Public catalog
+      expect(isProtectedPath('/library')).toBe(false);
     });
 
     it('Scenario 13: Admin login succeeds with valid credentials when no conflicting user session is active', async () => {
-      // No active normal user
       const mockNoUserSupabase = {
         auth: {
           getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
@@ -387,7 +468,6 @@ describe('OpenShelf — Admin and Normal User Session Isolation Security Suite',
       });
 
       const res = await handleTelegramWebhook(req);
-      // Valid webhook returns 200 OK
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json.ok).toBe(true);

@@ -68,11 +68,22 @@ export const api = {
 
   // Dedicated Admin Auth
   adminAuth: {
-    async getMe(): Promise<{ authenticated: boolean; username: string; role: string }> {
-      return request('/api/admin/auth/me');
+    async getMe(): Promise<{ authenticated: boolean; username: string | null; role: string | null }> {
+      try {
+        const res = await request<{ authenticated: boolean; username: string | null; role: string | null }>(
+          '/api/admin/auth/me'
+        );
+        return res || { authenticated: false, username: null, role: null };
+      } catch {
+        return { authenticated: false, username: null, role: null };
+      }
     },
     async logout(): Promise<void> {
-      await request('/api/admin/auth/logout', { method: 'POST' });
+      try {
+        await request('/api/admin/auth/logout', { method: 'POST' });
+      } catch (err) {
+        console.warn('Admin logout notice:', err);
+      }
     },
   },
 
@@ -402,8 +413,20 @@ export const api = {
       dirtyHistory: any[];
     }): Promise<{
       synced: boolean;
+      overallStatus?: 'success' | 'partial' | 'failed';
       serverTimestamp: string;
       conflicts: any[];
+      categories?: {
+        notes: { status: 'synced' | 'partial' | 'failed'; total: number; synced: number; failed: number };
+        readingProgress: { status: 'synced' | 'partial' | 'failed'; total: number; synced: number; failed: number };
+        readingHistory: { status: 'synced' | 'partial' | 'failed'; total: number; synced: number; failed: number };
+      };
+      successfulNoteIds?: string[];
+      successfulProgressDocIds?: string[];
+      successfulHistoryIds?: string[];
+      failedNotes?: { id: string; error: string }[];
+      failedProgress?: { document_id: string; error: string }[];
+      failedHistory?: { id: string; error: string }[];
       notes: any[];
       readingProgress: any[];
       readingHistory: any[];

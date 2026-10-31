@@ -9,8 +9,10 @@ import styles from './MobileNav.module.css';
 export function MobileNav() {
   const pathname = usePathname();
   const isReader = pathname?.startsWith('/reader/');
+  const isAdminRoute = pathname?.startsWith('/admin');
+  const isSwitchRoute = pathname?.startsWith('/auth/switch');
 
-  if (isReader) return null;
+  if (isReader || isAdminRoute || isSwitchRoute) return null;
 
   return (
     <nav className={styles.mobileNav} aria-label="Mobile Navigation">

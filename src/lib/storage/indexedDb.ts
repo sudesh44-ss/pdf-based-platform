@@ -69,7 +69,7 @@ const DB_NAME = 'openshelf_local_first_v1';
 const DB_VERSION = 1;
 
 // In-memory fallback storage for SSR / environments without native IndexedDB
-const memoryStore = {
+export const memoryStore = {
   notes: new Map<string, LocalNote>(),
   progress: new Map<string, LocalReadingProgress>(),
   history: new Map<string, LocalReadingHistoryEntry>(),
@@ -460,10 +460,18 @@ export const localSync = {
       readingProgress: any[];
       readingHistory?: any[];
       serverTimestamp: string;
+      successfulNoteIds?: string[];
+      successfulProgressDocIds?: string[];
+      successfulHistoryIds?: string[];
     }
   ): Promise<{ conflicts: LocalNote[]; syncedCount: number }> {
     const conflicts: LocalNote[] = [];
     let syncedCount = 0;
+
+    const hasExplicitSuccessIds =
+      Array.isArray(snapshot.successfulNoteIds) ||
+      Array.isArray(snapshot.successfulProgressDocIds) ||
+      Array.isArray(snapshot.successfulHistoryIds);
 
     // 1. Process Notes
     const existingNotes = await (async () => {
@@ -481,8 +489,37 @@ export const localSync = {
 
     const localNoteMap = new Map<string, LocalNote>(existingNotes.map((n) => [n.id, n]));
 
+    // If explicit success IDs are provided, first mark confirmed notes as synced
+    if (snapshot.successfulNoteIds) {
+      for (const noteId of snapshot.successfulNoteIds) {
+        const local = localNoteMap.get(noteId);
+        if (local) {
+          local.sync_status = 'synced';
+          syncedCount++;
+          if (!hasIndexedDb()) {
+            memoryStore.notes.set(local.id, local);
+          } else {
+            const db = await openDb();
+            const tx = db.transaction('notes', 'readwrite');
+            tx.objectStore('notes').put(local);
+          }
+        }
+      }
+    }
+
     for (const serverNote of snapshot.notes || []) {
       const local = localNoteMap.get(serverNote.id);
+
+      // If local is dirty and was NOT in successfulNoteIds, do not overwrite with server version
+      if (
+        hasExplicitSuccessIds &&
+        snapshot.successfulNoteIds &&
+        !snapshot.successfulNoteIds.includes(serverNote.id) &&
+        local &&
+        local.sync_status === 'dirty'
+      ) {
+        continue;
+      }
 
       if (local && local.sync_status === 'dirty') {
         // Conflict Check: Server changed while local also changed
@@ -521,13 +558,16 @@ export const localSync = {
         content_json: serverNote.content_json,
         tags: serverNote.tags || [],
         is_favorite: serverNote.is_favorite || false,
-        version: 1,
+        version: local?.version || 1,
         client_updated_at: serverNote.updated_at || new Date().toISOString(),
         sync_status: 'synced',
         is_deleted: false,
       };
 
-      syncedCount++;
+      if (!snapshot.successfulNoteIds || snapshot.successfulNoteIds.includes(serverNote.id)) {
+        syncedCount++;
+      }
+
       if (!hasIndexedDb()) {
         memoryStore.notes.set(restoredNote.id, restoredNote);
       } else {
@@ -538,8 +578,35 @@ export const localSync = {
     }
 
     // 2. Process Reading Progress (Latest timestamp wins)
+    if (snapshot.successfulProgressDocIds) {
+      for (const docId of snapshot.successfulProgressDocIds) {
+        const local = await localProgress.get(docId, userId);
+        if (local) {
+          local.sync_status = 'synced';
+          if (!hasIndexedDb()) {
+            memoryStore.progress.set(docId, local);
+          } else {
+            const db = await openDb();
+            const tx = db.transaction('reading_progress', 'readwrite');
+            tx.objectStore('reading_progress').put(local);
+          }
+        }
+      }
+    }
+
     for (const serverProg of snapshot.readingProgress || []) {
       const local = await localProgress.get(serverProg.document_id, userId);
+
+      // If local is dirty and failed to sync, preserve local dirty progress
+      if (
+        hasExplicitSuccessIds &&
+        snapshot.successfulProgressDocIds &&
+        !snapshot.successfulProgressDocIds.includes(serverProg.document_id) &&
+        local &&
+        local.sync_status === 'dirty'
+      ) {
+        continue;
+      }
 
       let shouldUseServer = true;
       if (local) {
@@ -576,17 +643,23 @@ export const localSync = {
       }
     }
 
-    // 3. Mark dirty history items as synced
+    // 3. Process Reading History
     const historyList = await localHistory.getAll(userId);
     for (const h of historyList) {
       if (h.sync_status === 'dirty') {
-        h.sync_status = 'synced';
-        if (!hasIndexedDb()) {
-          memoryStore.history.set(h.id, h);
-        } else {
-          const db = await openDb();
-          const tx = db.transaction('reading_history', 'readwrite');
-          tx.objectStore('reading_history').put(h);
+        const isConfirmed = snapshot.successfulHistoryIds
+          ? snapshot.successfulHistoryIds.includes(h.id)
+          : true;
+
+        if (isConfirmed) {
+          h.sync_status = 'synced';
+          if (!hasIndexedDb()) {
+            memoryStore.history.set(h.id, h);
+          } else {
+            const db = await openDb();
+            const tx = db.transaction('reading_history', 'readwrite');
+            tx.objectStore('reading_history').put(h);
+          }
         }
       }
     }

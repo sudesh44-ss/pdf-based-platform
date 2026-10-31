@@ -31,12 +31,13 @@ export function Header() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [syncModalMode, setSyncModalMode] = useState<'logout' | 'manual'>('logout');
 
-  // In the reader view, we can render a minimal or hidden header if needed
+  // Hide header in reader view, admin panel, or account switch screen to prevent layout collisions
   const isReader = pathname?.startsWith('/reader/');
+  const isAdminRoute = pathname?.startsWith('/admin');
+  const isSwitchRoute = pathname?.startsWith('/auth/switch');
 
   useEffect(() => {
     let isMounted = true;
@@ -76,39 +77,20 @@ export function Header() {
     }
   };
 
-  const handleManualSync = async () => {
-    if (!userId || isSyncing) return;
-    setIsSyncing(true);
-    setSyncFeedback(null);
+  const handleOpenManualSync = () => {
+    if (!userId) return;
+    setSyncModalMode('manual');
+    setSyncModalOpen(true);
+  };
 
-    try {
-      const pendingData = await localSync.getPendingChanges(userId);
-      const res = await api.sync.pushPending({
-        dirtyNotes: pendingData.dirtyNotes,
-        dirtyProgress: pendingData.dirtyProgress,
-        dirtyHistory: pendingData.dirtyHistory,
-      });
-
-      await localSync.applyServerSnapshot(userId, {
-        notes: res.notes,
-        readingProgress: res.readingProgress,
-        readingHistory: res.readingHistory,
-        serverTimestamp: res.serverTimestamp,
-      });
-
-      setSyncFeedback('Synced');
-      setTimeout(() => setSyncFeedback(null), 3000);
-    } catch (err: any) {
-      console.error('Manual cloud sync failed:', err);
-      setSyncFeedback('Error');
-      setTimeout(() => setSyncFeedback(null), 3000);
-    } finally {
-      setIsSyncing(false);
-    }
+  const handleOpenLogout = () => {
+    if (!userId) return;
+    setSyncModalMode('logout');
+    setSyncModalOpen(true);
   };
 
   const handleLogoutSuccess = () => {
-    setLogoutModalOpen(false);
+    setSyncModalOpen(false);
     setIsAuthenticated(false);
     setUserId(null);
     setUserProfile(null);
@@ -117,8 +99,8 @@ export function Header() {
     router.refresh();
   };
 
-  if (isReader) {
-    return null; // PDF Reader has its own dedicated top toolbar
+  if (isReader || isAdminRoute || isSwitchRoute) {
+    return null;
   }
 
   return (
@@ -158,8 +140,7 @@ export function Header() {
                 {/* Manual Cloud Sync Button */}
                 <button
                   type="button"
-                  onClick={handleManualSync}
-                  disabled={isSyncing}
+                  onClick={handleOpenManualSync}
                   className={styles.userBtn}
                   title="Manual Cloud Sync (Sync Local Notes & Reading Progress)"
                   style={{
@@ -169,18 +150,12 @@ export function Header() {
                     padding: '0.35rem 0.65rem',
                     fontSize: '0.785rem',
                     fontWeight: 600,
-                    color: syncFeedback === 'Synced' ? '#10b981' : syncFeedback === 'Error' ? '#ef4444' : 'var(--text-secondary)',
+                    color: 'var(--text-secondary)',
                     borderRadius: '8px',
                   }}
                 >
-                  {isSyncing ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : syncFeedback === 'Synced' ? (
-                    <Check size={15} color="#10b981" />
-                  ) : (
-                    <CloudUpload size={15} />
-                  )}
-                  <span>{syncFeedback ? syncFeedback : isSyncing ? 'Syncing...' : 'Sync'}</span>
+                  <CloudUpload size={15} />
+                  <span>Sync</span>
                 </button>
 
                 <Link
@@ -202,7 +177,7 @@ export function Header() {
 
                 <button
                   type="button"
-                  onClick={() => setLogoutModalOpen(true)}
+                  onClick={handleOpenLogout}
                   className={styles.userBtn}
                   title="Sign Out"
                   aria-label="Sign Out"
@@ -243,12 +218,13 @@ export function Header() {
         </div>
       </header>
 
-      {/* Logout Confirmation Modal */}
+      {/* Manual Sync & Logout Confirmation Modal */}
       {userId && (
         <LogoutConfirmModal
-          isOpen={logoutModalOpen}
+          isOpen={syncModalOpen}
           userId={userId}
-          onClose={() => setLogoutModalOpen(false)}
+          mode={syncModalMode}
+          onClose={() => setSyncModalOpen(false)}
           onLogoutSuccess={handleLogoutSuccess}
         />
       )}

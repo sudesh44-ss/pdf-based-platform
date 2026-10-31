@@ -92,12 +92,15 @@ export async function middleware(request: NextRequest) {
   }
 
   // =========================================================================
-  // 2. DIRECT ADMIN URL & API PROTECTION (Normal User -> Admin Isolation)
+  // 2. ADMIN API PROTECTION
   // =========================================================================
-
-  // Handle Admin APIs
   if (pathname.startsWith('/api/admin')) {
-    // If a Normal User attempts to authenticate via Admin Login API, block with 409 Conflict
+    // A. Allow logout endpoint unconditionally so browser can always clear expired/stale cookies
+    if (pathname === '/api/admin/auth/logout') {
+      return supabaseResponse;
+    }
+
+    // B. If a Normal User attempts to authenticate via Admin Login API, block with 409 Conflict
     if (pathname === '/api/admin/auth/login' && normalUser) {
       return NextResponse.json(
         {
@@ -112,6 +115,7 @@ export async function middleware(request: NextRequest) {
       );
     }
 
+    // C. All other /api/admin/* endpoints require a valid administrative session
     if (pathname !== '/api/admin/auth/login') {
       if (!adminSessionToken) {
         return NextResponse.json(
@@ -165,11 +169,13 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Handle Direct Admin Page Routes (/admin, /admin/login, /admin/*)
+  // =========================================================================
+  // 3. DIRECT ADMIN PAGE ROUTES (/admin, /admin/login, /admin/*)
+  // =========================================================================
   if (pathname.startsWith('/admin')) {
-    // A Normal User must NOT be able to access the Admin Panel or Admin Login directly.
-    // Trigger the Account-Switch experience immediately.
-    if (normalUser) {
+    // If Normal User is active and user does NOT already have an admin session:
+    // Trigger the Account-Switch experience before rendering any admin content or login form.
+    if (normalUser && !adminSessionToken) {
       const switchUrl = new URL('/auth/switch', request.url);
       switchUrl.searchParams.set('target', 'admin');
       switchUrl.searchParams.set('next', pathname);
@@ -183,7 +189,7 @@ export async function middleware(request: NextRequest) {
       return supabaseResponse;
     }
 
-    // All other /admin/* routes require a valid admin session cookie
+    // All other /admin/* routes require an admin session cookie
     if (!adminSessionToken) {
       return NextResponse.redirect(new URL('/admin/login', request.url));
     }
@@ -192,12 +198,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // =========================================================================
-  // 3. DIRECT NORMAL USER ROUTE PROTECTION (Admin -> Normal User Isolation)
+  // 4. DIRECT NORMAL USER ROUTE PROTECTION (Admin -> Normal User Isolation)
   // =========================================================================
-
-  // If an Admin account is active on this browser and attempts to access protected
-  // Normal User features or the Normal User login page, trigger the Account-Switch experience.
-  if (adminSessionToken) {
+  // If an Admin account is active (and no user session):
+  // Trigger the Account-Switch experience before exposing protected user routes or user login.
+  if (adminSessionToken && !normalUser) {
     if (isProtectedPath(pathname) || pathname === '/auth/login') {
       const switchUrl = new URL('/auth/switch', request.url);
       switchUrl.searchParams.set('target', 'user');
@@ -208,7 +213,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // =========================================================================
-  // 4. STANDARD NORMAL USER SUPABASE AUTHENTICATION
+  // 5. STANDARD NORMAL USER SUPABASE AUTHENTICATION
   // =========================================================================
   if (!supabaseUrl || !supabaseAnonKey) {
     if (isProtectedPath(pathname)) {
