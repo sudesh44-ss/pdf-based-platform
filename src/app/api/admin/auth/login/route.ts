@@ -7,6 +7,8 @@ import {
 } from '@/lib/auth/adminAuth';
 import { checkRateLimit, getClientIp } from '@/lib/api/rateLimit';
 import { apiSuccess, apiError } from '@/lib/api/response';
+import { createClient } from '@/lib/supabase/server';
+import { getAuthenticatedUser } from '@/lib/services/authService';
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
@@ -42,6 +44,19 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return apiError('INVALID_REQUEST', 'Invalid JSON payload', 400);
+  }
+
+  // Enforce session separation: A Normal User must not remain logged in simultaneously with Admin
+  const supabase = await createClient();
+  if (supabase) {
+    const activeNormalUser = await getAuthenticatedUser(supabase);
+    if (activeNormalUser) {
+      return apiError(
+        'SESSION_CONFLICT',
+        'A Normal User account is currently logged in on this browser. To access the Admin Panel, you must switch accounts.',
+        409
+      );
+    }
   }
 
   const { username, password } = body || {};

@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   XCircle,
   History,
+  BookOpen,
   Settings,
   LogOut,
   Shield,
@@ -53,6 +54,7 @@ export function AdminSidebar({ username = 'Administrator' }: AdminSidebarProps) 
     { href: '/admin/published', label: 'Published PDFs', icon: CheckCircle2 },
     { href: '/admin/rejected', label: 'Rejected Uploads', icon: XCircle },
     { href: '/admin/activity-logs', label: 'Activity Logs', icon: History },
+    { href: '/admin/user-activity', label: 'User Activity', icon: BookOpen },
     { href: '/admin/settings', label: 'Admin Settings', icon: Settings },
   ];
 

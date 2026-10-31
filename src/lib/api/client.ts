@@ -66,6 +66,16 @@ export const api = {
     },
   },
 
+  // Dedicated Admin Auth
+  adminAuth: {
+    async getMe(): Promise<{ authenticated: boolean; username: string; role: string }> {
+      return request('/api/admin/auth/me');
+    },
+    async logout(): Promise<void> {
+      await request('/api/admin/auth/logout', { method: 'POST' });
+    },
+  },
+
   // User Profile
   profile: {
     async get(): Promise<Profile> {
@@ -368,6 +378,37 @@ export const api = {
   contact: {
     async send(data: { name: string; email: string; subject: string; message: string }): Promise<any> {
       return request('/api/contact', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+  },
+
+  // Manual Cloud Sync
+  sync: {
+    async getSnapshot(): Promise<{
+      notes: any[];
+      readingProgress: any[];
+      readingHistory: any[];
+      lastSyncedAt: string;
+      serverTimestamp: string;
+    }> {
+      return request('/api/sync');
+    },
+
+    async pushPending(data: {
+      dirtyNotes: any[];
+      dirtyProgress: any[];
+      dirtyHistory: any[];
+    }): Promise<{
+      synced: boolean;
+      serverTimestamp: string;
+      conflicts: any[];
+      notes: any[];
+      readingProgress: any[];
+      readingHistory: any[];
+    }> {
+      return request('/api/sync', {
         method: 'POST',
         body: JSON.stringify(data),
       });

@@ -7,7 +7,8 @@ export async function POST() {
     return apiError('CONFIGURATION_ERROR', 'Supabase credentials are not configured', 503);
   }
 
-  const { error } = await supabase.auth.signOut();
+  // Local scope ensures current browser session is terminated without revoking other device sessions (PC vs Mobile independence)
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
   if (error) {
     return apiError('INTERNAL_ERROR', error.message, 500);
   }

@@ -1,13 +1,16 @@
 'use client';
 
 import React, { Suspense, useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { BookOpen, AlertCircle, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { BookOpen, AlertCircle, ShieldAlert, CheckCircle2, Loader2 } from 'lucide-react';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { AccountSwitchModal } from '@/components/auth/AccountSwitchModal';
+import { api } from '@/lib/api/client';
 import styles from './page.module.css';
 
 function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get('next') || '/dashboard';
   const urlError = searchParams.get('error');
@@ -16,6 +19,29 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [hasAdminSession, setHasAdminSession] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+
+  // Check if an Admin session is currently active on this browser
+  useEffect(() => {
+    let mounted = true;
+    api.adminAuth
+      .getMe()
+      .then((data) => {
+        if (!mounted) return;
+        if (data.authenticated) {
+          setHasAdminSession(true);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (mounted) setCheckingAdmin(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (
@@ -106,19 +132,45 @@ function LoginForm() {
     }
   };
 
-  return (
-    <div className={styles.container}>
-      <div className={styles.authCard}>
-        <div className={styles.brandIcon}>
-          <BookOpen size={26} />
+  if (checkingAdmin) {
+    return (
+      <div className={styles.container}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', color: 'var(--text-secondary)' }}>
+          <Loader2 className="animate-spin" size={24} />
+          <span>Verifying active browser session...</span>
         </div>
+      </div>
+    );
+  }
 
-        <div>
-          <h1 className={styles.title}>Welcome to SmartPDF</h1>
-          <p className={styles.subtitle}>
-            Sign in with your Google account to access your personal PDF library, private annotations, and Telegram-backed notebooks.
-          </p>
-        </div>
+  return (
+    <>
+      {hasAdminSession && (
+        <AccountSwitchModal
+          isOpen={true}
+          targetRole="user"
+          nextUrl={next}
+          onCancel={() => router.push('/admin')}
+          onSwitchSuccess={() => {
+            setHasAdminSession(false);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {!hasAdminSession && (
+        <div className={styles.container}>
+          <div className={styles.authCard}>
+            <div className={styles.brandIcon}>
+              <BookOpen size={26} />
+            </div>
+
+            <div>
+              <h1 className={styles.title}>Welcome to SmartPDF</h1>
+              <p className={styles.subtitle}>
+                Sign in with your Google account to access your personal PDF library, private annotations, and Telegram-backed notebooks.
+              </p>
+            </div>
 
         {errorMessage && (
           <div
@@ -195,6 +247,8 @@ function LoginForm() {
         </p>
       </div>
     </div>
+  )}
+</>
   );
 }
 

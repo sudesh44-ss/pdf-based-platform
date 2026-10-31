@@ -6,25 +6,26 @@ import {
   FileEdit,
   Plus,
   Download,
-  Share2,
   Trash2,
   Link as LinkIcon,
   CheckCircle,
   Clock,
-  AlertCircle,
-  WifiOff,
+  AlertTriangle,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
-import { Note } from '@/lib/types/database';
+import { localNotes, LocalNote } from '@/lib/storage/indexedDb';
 import { api } from '@/lib/api/client';
 import { TiptapEditor } from '../notes/TiptapEditor';
 import styles from './NotesSplitPanel.module.css';
 
-type SaveStatus = 'saving' | 'saved' | 'offline' | 'failed';
+type SaveStatus = 'saved' | 'saving' | 'conflict';
 
 interface NotesSplitPanelProps {
   documentId: string;
   documentTitle: string;
   currentPage: number;
+  userId?: string;
   onJumpToPage: (page: number) => void;
   onClose: () => void;
 }
@@ -33,51 +34,78 @@ export function NotesSplitPanel({
   documentId,
   documentTitle,
   currentPage,
+  userId: propUserId,
   onJumpToPage,
   onClose,
 }: NotesSplitPanelProps) {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [activeNote, setActiveNote] = useState<Note | null>(null);
+  const [userId, setUserId] = useState<string>(propUserId || 'local_user');
+  const [notes, setNotes] = useState<LocalNote[]>([]);
+  const [activeNote, setActiveNote] = useState<LocalNote | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Obtain active user if not supplied
   useEffect(() => {
+    if (propUserId) {
+      setUserId(propUserId);
+      return;
+    }
+
     let isMounted = true;
-    api.notes
-      .list({ document_id: documentId })
-      .then((res) => {
+    api.auth
+      .getMe()
+      .then((data) => {
         if (!isMounted) return;
-        const list = res.notes || [];
-        setNotes(list);
-        if (list.length > 0) {
-          setActiveNote(list[0]);
+        if (data.user?.id) {
+          setUserId(data.user.id);
         }
       })
-      .catch((err) => {
-        console.error('Error fetching document notes:', err);
-      });
+      .catch(() => {});
 
     return () => {
       isMounted = false;
     };
-  }, [documentId, documentTitle, currentPage]);
+  }, [propUserId]);
 
-  const handleCreateNote = async () => {
+  // Load notes from local-first IndexedDB
+  const reloadNotes = async (activeUserId: string) => {
     try {
-      const newNote = await api.notes.create({
-        document_id: documentId,
-        page_number: currentPage,
-        title: `Page ${currentPage} Note (${new Date().toLocaleDateString()})`,
-        content_html: `<p>New note attached to page ${currentPage}...</p>`,
-      });
-      setNotes([newNote, ...notes]);
-      setActiveNote(newNote);
-      setSaveStatus('saved');
-    } catch (err: any) {
-      alert(err.message || 'Failed to create note');
+      const list = await localNotes.list(activeUserId, documentId);
+      setNotes(list);
+      if (list.length > 0 && !activeNote) {
+        setActiveNote(list[0]);
+      }
+    } catch (err) {
+      console.error('Failed to load local notes:', err);
     }
   };
 
+  useEffect(() => {
+    reloadNotes(userId);
+  }, [documentId, userId]);
+
+  // Create new local note
+  const handleCreateNote = async () => {
+    try {
+      const newNote = await localNotes.save(
+        {
+          document_id: documentId,
+          page_number: currentPage,
+          title: `Page ${currentPage} Note (${new Date().toLocaleDateString()})`,
+          content_html: `<p>New local note attached to page ${currentPage}...</p>`,
+        },
+        userId
+      );
+
+      setNotes((prev) => [newNote, ...prev]);
+      setActiveNote(newNote);
+      setSaveStatus('saved');
+    } catch (err: any) {
+      alert(err.message || 'Failed to create local note');
+    }
+  };
+
+  // Debounced local persistence on content change
   const handleContentChange = (html: string, json: any) => {
     if (!activeNote) return;
 
@@ -87,20 +115,24 @@ export function NotesSplitPanel({
       clearTimeout(saveTimeoutRef.current);
     }
 
-    // Debounce auto-save by 800ms
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        const updated = await api.notes.update(activeNote.id, {
-          content_html: html,
-          content_json: json,
-        });
+        const updated = await localNotes.save(
+          {
+            ...activeNote,
+            content_html: html,
+            content_json: json,
+          },
+          userId
+        );
+
         setActiveNote(updated);
         setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
-        setSaveStatus('saved');
+        setSaveStatus(updated.sync_status === 'conflict' ? 'conflict' : 'saved');
       } catch (err) {
-        setSaveStatus('failed');
+        console.error('Failed to save note locally:', err);
       }
-    }, 800);
+    }, 400); // 400ms responsive local persistence
   };
 
   const handleTitleChange = (newTitle: string) => {
@@ -112,16 +144,24 @@ export function NotesSplitPanel({
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        await api.notes.update(activeNote.id, { title: newTitle });
-      } catch {
-        // Ignore
+        const saved = await localNotes.save(
+          {
+            ...activeNote,
+            title: newTitle,
+          },
+          userId
+        );
+        setActiveNote(saved);
+        setNotes((prev) => prev.map((n) => (n.id === saved.id ? saved : n)));
+      } catch (err) {
+        console.error('Failed to update note title locally:', err);
       }
-    }, 800);
+    }, 400);
   };
 
   const handleDeleteNote = async (id: string) => {
     try {
-      await api.notes.delete(id);
+      await localNotes.delete(id, userId);
       const remaining = notes.filter((n) => n.id !== id);
       setNotes(remaining);
       setActiveNote(remaining.length > 0 ? remaining[0] : null);
@@ -130,9 +170,38 @@ export function NotesSplitPanel({
     }
   };
 
+  const handleKeepLocalVersion = async () => {
+    if (!activeNote) return;
+    const resolved: LocalNote = {
+      ...activeNote,
+      sync_status: 'dirty',
+      conflict_data: null,
+      version: (activeNote.version || 1) + 1,
+    };
+    const saved = await localNotes.save(resolved, userId);
+    setActiveNote(saved);
+    setNotes((prev) => prev.map((n) => (n.id === saved.id ? saved : n)));
+    setSaveStatus('saved');
+  };
+
+  const handleAcceptServerVersion = async () => {
+    if (!activeNote || !activeNote.conflict_data) return;
+    const resolved: LocalNote = {
+      ...activeNote,
+      title: activeNote.conflict_data.server_title,
+      content_html: activeNote.conflict_data.server_content_html,
+      sync_status: 'synced',
+      conflict_data: null,
+    };
+    const saved = await localNotes.save(resolved, userId);
+    setActiveNote(saved);
+    setNotes((prev) => prev.map((n) => (n.id === saved.id ? saved : n)));
+    setSaveStatus('saved');
+  };
+
   const handleExportMarkdown = () => {
     if (!activeNote) return;
-    const markdown = `# ${activeNote.title}\n\nLinked to: ${documentTitle} (Page ${activeNote.page_number})\nDate: ${new Date(activeNote.updated_at).toLocaleString()}\n\n${activeNote.content_html.replace(/<[^>]+>/g, '\n')}`;
+    const markdown = `# ${activeNote.title}\n\nLinked to: ${documentTitle} (Page ${activeNote.page_number || 'N/A'})\nClient Updated: ${new Date(activeNote.client_updated_at).toLocaleString()}\nSync Status: ${activeNote.sync_status}\n\n${activeNote.content_html.replace(/<[^>]+>/g, '\n')}`;
     const blob = new Blob([markdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -154,15 +223,25 @@ export function NotesSplitPanel({
                 ? styles.statusSaved
                 : saveStatus === 'saving'
                 ? styles.statusSaving
-                : saveStatus === 'offline'
-                ? styles.statusOffline
                 : styles.statusFailed
             }`}
+            title="Saved locally in browser IndexedDB. Manually sync anytime via Header or Logout."
           >
-            {saveStatus === 'saved' && <><CheckCircle size={10} /> Saved</>}
-            {saveStatus === 'saving' && <><Clock size={10} /> Saving...</>}
-            {saveStatus === 'offline' && <><WifiOff size={10} /> Offline</>}
-            {saveStatus === 'failed' && <><AlertCircle size={10} /> Save Failed</>}
+            {saveStatus === 'saved' && (
+              <>
+                <Database size={10} /> Local
+              </>
+            )}
+            {saveStatus === 'saving' && (
+              <>
+                <Clock size={10} /> Saving...
+              </>
+            )}
+            {saveStatus === 'conflict' && (
+              <>
+                <AlertTriangle size={10} /> Conflict
+              </>
+            )}
           </span>
         </div>
 
@@ -176,6 +255,61 @@ export function NotesSplitPanel({
           <X size={16} />
         </button>
       </div>
+
+      {/* Conflict Resolution Banner */}
+      {activeNote?.conflict_data && (
+        <div
+          style={{
+            padding: '0.65rem 0.85rem',
+            background: 'rgba(234, 179, 8, 0.15)',
+            borderBottom: '1px solid rgba(234, 179, 8, 0.3)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.4rem',
+            fontSize: '0.785rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#eab308', fontWeight: 600 }}>
+            <AlertTriangle size={14} />
+            <span>Cloud Conflict Detected</span>
+          </div>
+          <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+            This note was edited on another device. Choose which version to keep:
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
+            <button
+              type="button"
+              onClick={handleKeepLocalVersion}
+              style={{
+                padding: '0.25rem 0.5rem',
+                borderRadius: '4px',
+                background: 'var(--accent-primary)',
+                color: '#fff',
+                fontSize: '0.725rem',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Keep My Version
+            </button>
+            <button
+              type="button"
+              onClick={handleAcceptServerVersion}
+              style={{
+                padding: '0.25rem 0.5rem',
+                borderRadius: '4px',
+                background: 'transparent',
+                border: '1px solid var(--border-medium)',
+                color: 'var(--text-primary)',
+                fontSize: '0.725rem',
+                cursor: 'pointer',
+              }}
+            >
+              Use Server Version
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className={styles.noteSelectRow}>
         {activeNote ? (
@@ -224,6 +358,9 @@ export function NotesSplitPanel({
               color: 'var(--accent-primary)',
               textDecoration: 'underline',
               fontSize: '0.75rem',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
             }}
           >
             Jump to page

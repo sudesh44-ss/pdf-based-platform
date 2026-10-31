@@ -57,21 +57,6 @@ export function Sidebar({ counts }: SidebarProps) {
           <span>My PDFs</span>
           {counts?.documents !== undefined && <span className={styles.badge}>{counts.documents}</span>}
         </Link>
-        <Link
-          href="/bookmarks"
-          className={`${styles.linkItem} ${isLinkActive('/bookmarks') ? styles.linkItemActive : ''}`}
-        >
-          <div className={styles.iconWrapper}><BookMarked size={17} /></div>
-          <span>Bookmarks</span>
-          {counts?.bookmarks !== undefined && <span className={styles.badge}>{counts.bookmarks}</span>}
-        </Link>
-        <Link
-          href="/statistics"
-          className={`${styles.linkItem} ${isLinkActive('/statistics') ? styles.linkItemActive : ''}`}
-        >
-          <div className={styles.iconWrapper}><BarChart3 size={17} /></div>
-          <span>Reading Stats</span>
-        </Link>
       </div>
 
       <div className={styles.section}>

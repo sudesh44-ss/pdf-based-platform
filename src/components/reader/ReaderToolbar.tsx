@@ -14,6 +14,7 @@ import {
   Crop,
   Code2,
   Bookmark,
+  FileText,
   Sidebar as SidebarIcon,
   RotateCcw,
   Rows3,
@@ -29,6 +30,7 @@ interface ReaderToolbarProps {
   viewMode: ViewMode;
   isSmartCrop: boolean;
   isBookmarked: boolean;
+  notesOpen?: boolean;
   thumbnailsOpen: boolean;
   isFullscreen: boolean;
   onPageChange: (page: number) => void;
@@ -39,6 +41,7 @@ interface ReaderToolbarProps {
   onToggleSmartCrop: () => void;
   onOpenCodeFocus: () => void;
   onToggleBookmark: () => void;
+  onToggleNotes?: () => void;
   onToggleThumbnails: () => void;
   onToggleFullscreen: () => void;
 }
@@ -51,6 +54,7 @@ function ReaderToolbarComponent({
   viewMode,
   isSmartCrop,
   isBookmarked,
+  notesOpen = false,
   thumbnailsOpen,
   isFullscreen,
   onPageChange,
@@ -61,6 +65,7 @@ function ReaderToolbarComponent({
   onToggleSmartCrop,
   onOpenCodeFocus,
   onToggleBookmark,
+  onToggleNotes,
   onToggleThumbnails,
   onToggleFullscreen,
 }: ReaderToolbarProps) {
@@ -193,6 +198,19 @@ function ReaderToolbarComponent({
         >
           <Bookmark size={16} fill={isBookmarked ? 'currentColor' : 'none'} />
         </button>
+
+        {/* Study Notes Split Panel Toggle */}
+        {onToggleNotes && (
+          <button
+            type="button"
+            className={`${styles.toolBtn} ${notesOpen ? styles.toolBtnActive : ''}`}
+            onClick={onToggleNotes}
+            title="Toggle Study Notes (N)"
+            aria-label="Toggle Study Notes"
+          >
+            <FileText size={16} />
+          </button>
+        )}
       </div>
 
       <div className={styles.rightGroup}>
