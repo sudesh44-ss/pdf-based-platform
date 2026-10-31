@@ -45,7 +45,16 @@ export async function GET(request: Request) {
       order,
     });
 
-    return apiSuccess(result);
+    const response = apiSuccess(result);
+    if (isPublic) {
+      // Cache public catalog lists on edge CDN for 30s with background revalidation (accelerates homepage and library)
+      response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=120');
+    } else {
+      // Private user library responses must never be cached publicly
+      response.headers.set('Cache-Control', 'private, no-cache, no-store');
+    }
+
+    return response;
   } catch (err: any) {
     console.error('Error in GET /api/documents:', err);
     return apiError('INTERNAL_ERROR', err.message || 'Failed to retrieve documents', 500);

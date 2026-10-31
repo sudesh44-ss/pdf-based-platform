@@ -30,11 +30,17 @@ export async function getDocuments(
   const limit = Math.min(100, Math.max(1, options.limit || 20));
   const offset = (page - 1) * limit;
 
-  let query = supabase.from('documents').select('*', { count: 'exact' });
+  const CATALOG_COLUMNS =
+    'id, title, description, file_name, file_size, mime_type, page_count, categories, tags, is_public, status, cover_image_url, thumbnail_url, likes_count, views_count, downloads_count, created_at, updated_at, user_id, contributor_name, author, publication_year, language';
+
+  let query = supabase.from('documents').select(CATALOG_COLUMNS, { count: 'exact' });
 
   // Public vs Private library filters
   if (options.isPublic) {
-    query = query.eq('is_public', true).eq('status', 'published').eq('is_trash', false);
+    query = query
+      .eq('is_public', true)
+      .eq('status', 'published')
+      .eq('is_trash', false);
   } else if (options.userId) {
     query = query.eq('user_id', options.userId);
     if (!options.includeTrash) {
@@ -68,7 +74,7 @@ export async function getDocuments(
   }
 
   const total = count || 0;
-  const docs = (data || []) as Document[];
+  const docs = (data || []) as unknown as Document[];
 
   return {
     documents: docs,

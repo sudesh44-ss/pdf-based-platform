@@ -35,7 +35,7 @@ export default function DashboardPage() {
       try {
         const [progressRes, myDocsRes, publicDocsRes, bookmarksRes] = await Promise.allSettled([
           api.readingProgress.list(),
-          api.documents.getMine({ limit: 12 }),
+          api.documents.getMine({ limit: 1 }),
           api.documents.getPublic({ limit: 6, sort: 'created_at', order: 'desc' }),
           api.bookmarks.list(),
         ]);

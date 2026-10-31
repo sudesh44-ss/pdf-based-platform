@@ -9,7 +9,7 @@ import {
   FolderOpen,
   BookMarked,
   BarChart3,
-  UploadCloud,
+  Send,
   Settings,
   User,
   HelpCircle,
@@ -80,7 +80,7 @@ export function Sidebar({ counts }: SidebarProps) {
           href="/my-contributions"
           className={`${styles.linkItem} ${isLinkActive('/my-contributions') ? styles.linkItemActive : ''}`}
         >
-          <div className={styles.iconWrapper}><UploadCloud size={17} /></div>
+          <div className={styles.iconWrapper}><Send size={17} /></div>
           <span>Submissions</span>
         </Link>
         <Link

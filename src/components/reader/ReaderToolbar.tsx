@@ -43,7 +43,7 @@ interface ReaderToolbarProps {
   onToggleFullscreen: () => void;
 }
 
-export function ReaderToolbar({
+function ReaderToolbarComponent({
   title,
   currentPage,
   totalPages,
@@ -208,3 +208,5 @@ export function ReaderToolbar({
     </div>
   );
 }
+
+export const ReaderToolbar = React.memo(ReaderToolbarComponent);

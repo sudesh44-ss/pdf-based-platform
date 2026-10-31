@@ -4,10 +4,16 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CropSettings, ReadingProgress, ViewMode } from '@/lib/types/database';
 import { api } from '@/lib/api/client';
 import { ReaderToolbar } from './ReaderToolbar';
-import { ThumbnailDrawer } from './ThumbnailDrawer';
 import { SmartCropOverlay } from './SmartCropOverlay';
-import { CodeFocusModal } from './CodeFocusModal';
 import styles from './PdfViewer.module.css';
+
+// Dynamically import heavy drawer and code focus modal to reduce initial reader bundle size
+const ThumbnailDrawer = React.lazy(() =>
+  import('./ThumbnailDrawer').then((m) => ({ default: m.ThumbnailDrawer }))
+);
+const CodeFocusModal = React.lazy(() =>
+  import('./CodeFocusModal').then((m) => ({ default: m.CodeFocusModal }))
+);
 
 interface PdfViewerProps {
   documentId: string;
@@ -235,12 +241,17 @@ export function PdfViewer({
           }
         }
       }
+
+      // Background pre-fetch next page for instantaneous page turns
+      if (currentPage < totalPages && pdfDoc) {
+        pdfDoc.getPage(currentPage + 1).catch(() => {});
+      }
     } catch (err: any) {
       if (err.name !== 'RenderingCancelledException') {
         console.error('Render error:', err);
       }
     }
-  }, [pdfDoc, currentPage, zoom]);
+  }, [pdfDoc, currentPage, zoom, totalPages]);
 
   useEffect(() => {
     renderPage();
@@ -358,12 +369,14 @@ export function PdfViewer({
 
       <div className={styles.workspaceLayout}>
         {thumbnailsOpen && (
-          <ThumbnailDrawer
-            totalPages={totalPages}
-            currentPage={currentPage}
-            onPageSelect={(p) => setCurrentPage(p)}
-            onClose={() => setThumbnailsOpen(false)}
-          />
+          <React.Suspense fallback={<div className={styles.drawerSkeleton} />}>
+            <ThumbnailDrawer
+              totalPages={totalPages}
+              currentPage={currentPage}
+              onPageSelect={(p) => setCurrentPage(p)}
+              onClose={() => setThumbnailsOpen(false)}
+            />
+          </React.Suspense>
         )}
 
         <div className={styles.canvasScrollArea}>
@@ -420,10 +433,12 @@ export function PdfViewer({
       </div>
 
       {codeFocusOpen && (
-        <CodeFocusModal
-          canvasElement={canvasRef.current}
-          onClose={() => setCodeFocusOpen(false)}
-        />
+        <React.Suspense fallback={null}>
+          <CodeFocusModal
+            canvasElement={canvasRef.current}
+            onClose={() => setCodeFocusOpen(false)}
+          />
+        </React.Suspense>
       )}
     </div>
   );

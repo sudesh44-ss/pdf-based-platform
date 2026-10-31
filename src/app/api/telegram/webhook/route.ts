@@ -68,7 +68,18 @@ export async function POST(request: Request) {
     });
   }
 
-  // 4. Construct payload and ingest
+  // 4. Safely extract sender information for unauthenticated audit logging
+  const sender = msg.from
+    ? {
+        id: msg.from.id,
+        is_bot: msg.from.is_bot,
+        first_name: msg.from.first_name,
+        last_name: msg.from.last_name,
+        username: msg.from.username,
+      }
+    : undefined;
+
+  // Construct payload and ingest
   const docData: TelegramWebhookDocData = {
     chatId,
     messageId,
@@ -79,6 +90,7 @@ export async function POST(request: Request) {
     mimeType,
     caption: msg.caption || '',
     chatTitle,
+    sender,
   };
 
   const result = await registerTelegramUpload(docData);

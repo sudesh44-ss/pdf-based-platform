@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, Search, UploadCloud, User, Menu, X, LogOut } from 'lucide-react';
+import { BookOpen, Search, Send, User, Menu, X, LogOut } from 'lucide-react';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { api } from '@/lib/api/client';
 import { Profile } from '@/lib/types/database';
@@ -98,7 +98,7 @@ export function Header() {
 
         <div className={styles.right}>
           <Link href="/my-contributions" className={styles.contributeBtn}>
-            <UploadCloud size={15} />
+            <Send size={15} />
             <span>Submit PDF</span>
           </Link>
 

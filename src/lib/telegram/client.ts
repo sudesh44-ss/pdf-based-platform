@@ -20,11 +20,27 @@ export interface TelegramRestoreResult {
   isSimulated?: boolean;
 }
 
+interface CachedPdfEntry {
+  buffer: Buffer;
+  sha256: string;
+  expiresAt: number;
+  size: number;
+  accessedAt: number;
+}
+
 export class TelegramStorageClient {
   private botToken: string | undefined;
   private chatId: string | undefined;
   private apiBaseUrl: string;
   private isConfigured: boolean;
+
+  // High-performance in-memory caching to eliminate redundant Telegram round-trips
+  private filePathCache = new Map<string, { filePath: string; expiresAt: number }>();
+  private pdfBufferCache = new Map<string, CachedPdfEntry>();
+  private currentCacheBytes = 0;
+  private static readonly MAX_CACHE_BYTES = 50 * 1024 * 1024; // 50 MB total memory cap
+  private static readonly BUFFER_TTL_MS = 5 * 60 * 1000; // 5 minutes TTL per active reading session
+  private static readonly FILE_PATH_TTL_MS = 50 * 60 * 1000; // 50 minutes TTL for file_path
 
   constructor() {
     this.botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -35,12 +51,64 @@ export class TelegramStorageClient {
     this.isConfigured = Boolean(this.botToken && this.chatId && !this.botToken.includes('123456789:ABC'));
   }
 
+  /**
+   * Evicts expired or least-recently-used PDF buffers when cache exceeds memory ceiling.
+   */
+  private pruneBufferCache(requiredBytes: number = 0) {
+    const now = Date.now();
+
+    // 1. Evict expired entries
+    for (const [key, entry] of this.pdfBufferCache.entries()) {
+      if (entry.expiresAt <= now) {
+        this.currentCacheBytes -= entry.size;
+        this.pdfBufferCache.delete(key);
+      }
+    }
+
+    // 2. If still exceeding limit, evict LRU entries
+    while (
+      this.currentCacheBytes + requiredBytes > TelegramStorageClient.MAX_CACHE_BYTES &&
+      this.pdfBufferCache.size > 0
+    ) {
+      let oldestKey: string | null = null;
+      let oldestTime = Infinity;
+
+      for (const [key, entry] of this.pdfBufferCache.entries()) {
+        if (entry.accessedAt < oldestTime) {
+          oldestTime = entry.accessedAt;
+          oldestKey = key;
+        }
+      }
+
+      if (oldestKey) {
+        const item = this.pdfBufferCache.get(oldestKey);
+        if (item) {
+          this.currentCacheBytes -= item.size;
+        }
+        this.pdfBufferCache.delete(oldestKey);
+      } else {
+        break;
+      }
+    }
+  }
+
+  /**
+   * Resets the buffer and metadata cache (useful for testing or cache invalidation).
+   */
+  public clearCache() {
+    this.filePathCache.clear();
+    this.pdfBufferCache.clear();
+    this.currentCacheBytes = 0;
+  }
+
   public getStatus() {
     return {
       isConfigured: this.isConfigured,
       apiBaseUrl: this.apiBaseUrl,
       isLocalServer: !this.apiBaseUrl.includes('api.telegram.org'),
       hasChatId: Boolean(this.chatId),
+      cachedPdfsCount: this.pdfBufferCache.size,
+      cachedBytes: this.currentCacheBytes,
     };
   }
 
@@ -128,8 +196,22 @@ export class TelegramStorageClient {
 
   /**
    * Retrieves and downloads a stored PDF file from Telegram.
+   * Utilizes in-memory caching to eliminate redundant round-trips during range streaming.
    */
   public async downloadPdf(fileId: string): Promise<TelegramRestoreResult> {
+    const now = Date.now();
+
+    // 1. Return immediately from RAM if file is in active reading buffer cache
+    const cachedBuffer = this.pdfBufferCache.get(fileId);
+    if (cachedBuffer && cachedBuffer.expiresAt > now) {
+      cachedBuffer.accessedAt = now;
+      return {
+        success: true,
+        buffer: cachedBuffer.buffer,
+        sha256: cachedBuffer.sha256,
+      };
+    }
+
     if (!this.isConfigured || fileId.startsWith('sim_tg_') || fileId.startsWith('tg_file_')) {
       // In simulated/sample environment, return the verified sample PDF buffer
       try {
@@ -139,6 +221,18 @@ export class TelegramStorageClient {
         if (fs.existsSync(samplePath)) {
           const buf = fs.readFileSync(samplePath);
           const hash = crypto.createHash('sha256').update(buf).digest('hex');
+
+          // Cache simulated buffer as well
+          this.pruneBufferCache(buf.length);
+          this.pdfBufferCache.set(fileId, {
+            buffer: buf,
+            sha256: hash,
+            expiresAt: now + TelegramStorageClient.BUFFER_TTL_MS,
+            size: buf.length,
+            accessedAt: now,
+          });
+          this.currentCacheBytes += buf.length;
+
           return {
             success: true,
             buffer: buf,
@@ -152,21 +246,37 @@ export class TelegramStorageClient {
     }
 
     try {
-      const fileInfoUrl = `${this.apiBaseUrl}/bot${this.botToken}/getFile?file_id=${encodeURIComponent(fileId)}`;
-      const fileInfoRes = await fetch(fileInfoUrl);
-      const fileInfo = await fileInfoRes.json();
+      // 2. Resolve file_path (checking cached path first to avoid extra Telegram getFile call)
+      let filePath: string | null = null;
+      const cachedPathEntry = this.filePathCache.get(fileId);
+      if (cachedPathEntry && cachedPathEntry.expiresAt > now) {
+        filePath = cachedPathEntry.filePath;
+      } else {
+        const fileInfoUrl = `${this.apiBaseUrl}/bot${this.botToken}/getFile?file_id=${encodeURIComponent(fileId)}`;
+        const fileInfoRes = await fetch(fileInfoUrl);
+        const fileInfo = await fileInfoRes.json();
 
-      if (!fileInfo.ok || !fileInfo.result?.file_path) {
-        return {
-          success: false,
-          error: fileInfo.description || 'Could not locate file path in Telegram Bot API',
-        };
+        if (!fileInfo.ok || !fileInfo.result?.file_path) {
+          return {
+            success: false,
+            error: fileInfo.description || 'Could not locate file path in Telegram Bot API',
+          };
+        }
+
+        filePath = fileInfo.result.file_path as string;
+        this.filePathCache.set(fileId, {
+          filePath,
+          expiresAt: now + TelegramStorageClient.FILE_PATH_TTL_MS,
+        });
       }
 
-      const downloadUrl = `${this.apiBaseUrl}/file/bot${this.botToken}/${fileInfo.result.file_path}`;
+      // 3. Download the actual binary stream
+      const downloadUrl = `${this.apiBaseUrl}/file/bot${this.botToken}/${filePath}`;
       const downloadRes = await fetch(downloadUrl);
 
       if (!downloadRes.ok) {
+        // If download failed with 404, file_path may have expired; clear cached path
+        this.filePathCache.delete(fileId);
         return {
           success: false,
           error: `Telegram download failed with status ${downloadRes.status}`,
@@ -176,6 +286,17 @@ export class TelegramStorageClient {
       const arrayBuf = await downloadRes.arrayBuffer();
       const buffer = Buffer.from(arrayBuf);
       const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+
+      // 4. Save to in-memory LRU cache so subsequent range requests complete in < 1ms
+      this.pruneBufferCache(buffer.length);
+      this.pdfBufferCache.set(fileId, {
+        buffer,
+        sha256: hash,
+        expiresAt: now + TelegramStorageClient.BUFFER_TTL_MS,
+        size: buffer.length,
+        accessedAt: now,
+      });
+      this.currentCacheBytes += buffer.length;
 
       return {
         success: true,

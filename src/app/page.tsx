@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import {
   BookOpen,
@@ -12,32 +10,34 @@ import {
   Send,
   ShieldCheck,
   ArrowRight,
-  TrendingUp,
 } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { createClient } from '@/lib/supabase/server';
+import { getDocuments } from '@/lib/services/documentService';
 import { Document } from '@/lib/types/database';
 import { DocumentCard } from '@/components/library/DocumentCard';
 import styles from './page.module.css';
 
-export default function HomePage() {
-  const [featuredDocs, setFeaturedDocs] = useState<Document[]>([]);
+// Revalidate public featured catalog at the edge every 60 seconds
+export const revalidate = 60;
 
-  useEffect(() => {
-    let isMounted = true;
-    api.documents
-      .getPublic({ sort: 'popular', limit: 4 })
-      .then((res) => {
-        if (!isMounted) return;
-        setFeaturedDocs((res.documents || []).slice(0, 4));
-      })
-      .catch((err) => {
-        console.error('Failed to load featured documents:', err);
-      });
+async function getFeaturedDocuments(): Promise<Document[]> {
+  try {
+    const supabase = await createClient();
+    if (!supabase) return [];
+    const result = await getDocuments(supabase, {
+      isPublic: true,
+      limit: 4,
+      sort: 'likes_count',
+      order: 'desc',
+    });
+    return result.documents || [];
+  } catch {
+    return [];
+  }
+}
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+export default async function HomePage() {
+  const featuredDocs = await getFeaturedDocuments();
 
   return (
     <main>

@@ -1,6 +1,9 @@
 import { getAdminClient } from '@/lib/supabase/admin';
 import { Category } from '@/lib/types/database';
 
+let categoriesCache: { data: Category[]; expiresAt: number } | null = null;
+const CATEGORIES_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -11,6 +14,11 @@ function slugify(text: string): string {
 }
 
 export async function listCategories(includeHidden: boolean = false): Promise<Category[]> {
+  const now = Date.now();
+  if (!includeHidden && categoriesCache && categoriesCache.expiresAt > now) {
+    return categoriesCache.data;
+  }
+
   const adminClient = getAdminClient();
   if (!adminClient) return [];
 
@@ -26,7 +34,12 @@ export async function listCategories(includeHidden: boolean = false): Promise<Ca
     return [];
   }
 
-  return data as Category[];
+  const result = data as Category[];
+  if (!includeHidden) {
+    categoriesCache = { data: result, expiresAt: now + CATEGORIES_CACHE_TTL_MS };
+  }
+
+  return result;
 }
 
 export async function createCategory(data: {
@@ -36,6 +49,7 @@ export async function createCategory(data: {
   color?: string;
   icon?: string;
 }): Promise<Category | null> {
+  categoriesCache = null; // Invalidate cache
   const adminClient = getAdminClient();
   if (!adminClient) return null;
 
@@ -67,6 +81,7 @@ export async function updateCategory(
   id: string,
   updates: Partial<Category>
 ): Promise<Category | null> {
+  categoriesCache = null; // Invalidate cache
   const adminClient = getAdminClient();
   if (!adminClient) return null;
 
@@ -134,5 +149,6 @@ export async function deleteCategory(id: string): Promise<boolean> {
     throw new Error(error.message);
   }
 
+  categoriesCache = null; // Invalidate cache
   return true;
 }

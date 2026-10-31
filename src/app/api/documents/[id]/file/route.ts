@@ -6,6 +6,16 @@ import { telegramClient } from '@/lib/telegram/client';
 import { getVerifiedAdminSession } from '@/lib/auth/adminAuth';
 import { parseHttpRange } from '@/lib/pdf/rangeParser';
 
+interface CachedDocAccess {
+  fileName: string;
+  storageFileId: string;
+  isAccessible: boolean;
+  expiresAt: number;
+}
+
+// In-memory access validation cache (60s TTL) to prevent repeated DB lookups during rapid Range chunk streaming
+const docAccessCache = new Map<string, CachedDocAccess>();
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -16,32 +26,53 @@ export async function GET(
     return NextResponse.json({ error: 'Supabase configuration error' }, { status: 503 });
   }
 
+  const now = Date.now();
   const user = await getAuthenticatedUser(supabase);
   const adminSession = await getVerifiedAdminSession();
   const isAdmin = adminSession.valid;
+  const cacheKey = `${id}:${user?.id || 'anon'}:${isAdmin ? 'admin' : 'user'}`;
 
-  const doc = await getDocumentById(supabase, id, user?.id, isAdmin);
-  if (!doc) {
-    return NextResponse.json({ error: 'Document not found or access denied' }, { status: 404 });
+  const cached = docAccessCache.get(cacheKey);
+  let fileName: string;
+  let fileId: string;
+
+  if (cached && cached.expiresAt > now && cached.isAccessible) {
+    fileName = cached.fileName;
+    fileId = cached.storageFileId;
+  } else {
+    const doc = await getDocumentById(supabase, id, user?.id, isAdmin);
+    if (!doc) {
+      return NextResponse.json({ error: 'Document not found or access denied' }, { status: 404 });
+    }
+
+    // Double check publication status for non-owners/non-admins
+    const isOwner = user && doc.user_id === user.id;
+    const isAccessible =
+      (doc.is_public && doc.status === 'published' && !doc.is_trash && !doc.is_deleted) ||
+      isOwner ||
+      isAdmin;
+
+    if (!isAccessible) {
+      return NextResponse.json({ error: 'Document is not published' }, { status: 403 });
+    }
+
+    if (!doc.storage_file_id) {
+      return NextResponse.json({ error: 'No Telegram file reference associated with document' }, { status: 404 });
+    }
+
+    fileName = doc.file_name;
+    fileId = doc.storage_file_id;
+
+    // Cache verified access for 60s
+    docAccessCache.set(cacheKey, {
+      fileName,
+      storageFileId: fileId,
+      isAccessible: true,
+      expiresAt: now + 60000,
+    });
   }
 
-  // Double check publication status for non-owners/non-admins
-  const isOwner = user && doc.user_id === user.id;
-  const isAccessible =
-    (doc.is_public && doc.status === 'published' && !doc.is_trash && !doc.is_deleted) ||
-    isOwner ||
-    isAdmin;
-
-  if (!isAccessible) {
-    return NextResponse.json({ error: 'Document is not published' }, { status: 403 });
-  }
-
-  const fileId = doc.storage_file_id;
-  if (!fileId) {
-    return NextResponse.json({ error: 'No Telegram file reference associated with document' }, { status: 404 });
-  }
-
-  // Retrieve PDF bytes from Telegram Bot API
+  // Retrieve PDF bytes from Telegram Bot API (backed by TelegramStorageClient LRU buffer cache)
   const restoreResult = await telegramClient.downloadPdf(fileId);
   if (!restoreResult.success || !restoreResult.buffer) {
     return NextResponse.json(
@@ -56,7 +87,7 @@ export async function GET(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/pdf',
-    'Content-Disposition': `inline; filename="${encodeURIComponent(doc.file_name)}"`,
+    'Content-Disposition': `inline; filename="${encodeURIComponent(fileName)}"`,
     'Accept-Ranges': 'bytes',
     'Cache-Control': 'public, max-age=3600',
   };

@@ -11,11 +11,20 @@ import styles from './page.module.css';
 export default function LibraryPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [sort, setSort] = useState<'latest' | 'popular' | 'pages' | 'title'>('latest');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Debounce search keystrokes (250ms) to maintain smooth INP and avoid heavy main-thread filtering
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const fetchPublicDocs = useCallback(async () => {
     setLoading(true);
@@ -47,8 +56,8 @@ export default function LibraryPage() {
   const filteredDocs = useMemo(() => {
     let result = [...documents];
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       result = result.filter(
         (d) =>
           d.title.toLowerCase().includes(q) ||
@@ -70,7 +79,7 @@ export default function LibraryPage() {
     });
 
     return result;
-  }, [documents, search, category, sort]);
+  }, [documents, debouncedSearch, category, sort]);
 
   return (
     <div className={styles.container}>

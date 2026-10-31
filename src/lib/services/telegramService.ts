@@ -14,6 +14,13 @@ export interface TelegramWebhookDocData {
   mimeType: string;
   caption?: string;
   chatTitle?: string;
+  sender?: {
+    id?: number;
+    is_bot?: boolean;
+    first_name?: string;
+    last_name?: string;
+    username?: string;
+  };
 }
 
 /**
@@ -34,16 +41,18 @@ export function isPdfBuffer(buffer: Buffer | Uint8Array): boolean {
  * Validates whether a Telegram chat/channel ID is on the configured allowlist.
  */
 export function isChatIdAllowed(chatId: number | string): boolean {
-  const allowed = (process.env.TELEGRAM_ALLOWED_CHAT_IDS || '')
-    .split(',')
+  const allowedList = [
+    ...(process.env.TELEGRAM_ALLOWED_CHAT_IDS || '').split(','),
+    process.env.TELEGRAM_CHANNEL_OR_CHAT_ID || '',
+  ]
     .map((s) => s.trim())
     .filter(Boolean);
 
   // If no allowlist is configured in development, allow all
-  if (allowed.length === 0) return true;
+  if (allowedList.length === 0) return true;
 
   const chatStr = String(chatId);
-  return allowed.some((id) => id === chatStr);
+  return allowedList.some((id) => id === chatStr);
 }
 
 /**
@@ -118,6 +127,7 @@ export async function registerTelegramUpload(
     metadata: {
       source_chat_title: doc.chatTitle || null,
       received_at: new Date().toISOString(),
+      sender: doc.sender || null,
     },
   };
 

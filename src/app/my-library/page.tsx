@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
-  UploadCloud,
+  Send,
   FolderPlus,
   Trash2,
   Bookmark,
@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { Document, Folder } from '@/lib/types/database';
-import { validatePdfBuffer } from '@/lib/pdf/validator';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { DocumentCard } from '@/components/library/DocumentCard';
 import styles from './page.module.css';
@@ -29,18 +28,6 @@ export default function MyLibraryPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'favorites' | 'folders' | 'trash'>('all');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Upload modal state
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [docTitle, setDocTitle] = useState('');
-  const [docDescription, setDocDescription] = useState('');
-  const [docCategories, setDocCategories] = useState('Computer Science');
-  const [docTags, setDocTags] = useState('Study, Notes');
-  const [isPublic, setIsPublic] = useState(false);
-  const [rightsDeclared, setRightsDeclared] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   // New folder modal
   const [newFolderName, setNewFolderName] = useState('');
@@ -69,75 +56,6 @@ export default function MyLibraryPage() {
   useEffect(() => {
     reloadData();
   }, [reloadData]);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    setValidationError(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setSelectedFile(file);
-    if (!docTitle) {
-      setDocTitle(file.name.replace(/\.pdf$/i, '').replace(/[-_]/g, ' '));
-    }
-
-    try {
-      const buffer = await file.arrayBuffer();
-      const validation = validatePdfBuffer(new Uint8Array(buffer));
-      if (!validation.isValid) {
-        setValidationError(validation.error || 'Invalid PDF file.');
-      }
-    } catch {
-      setValidationError('Failed to inspect PDF binary structure.');
-    }
-  };
-
-  const handleUploadSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile) {
-      setValidationError('Please select a PDF file to upload.');
-      return;
-    }
-    if (!rightsDeclared) {
-      setValidationError('You must confirm that you have rights to upload this file.');
-      return;
-    }
-
-    setUploading(true);
-    setValidationError(null);
-
-    try {
-      const buffer = await selectedFile.arrayBuffer();
-      const validation = validatePdfBuffer(new Uint8Array(buffer));
-
-      if (!validation.isValid) {
-        setValidationError(validation.error || 'PDF binary validation failed.');
-        setUploading(false);
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('title', docTitle.trim() || selectedFile.name);
-      formData.append('description', docDescription.trim());
-      formData.append('categories', docCategories);
-      formData.append('tags', docTags);
-      formData.append('is_public', String(isPublic));
-      formData.append('rights_declared', String(rightsDeclared));
-
-      await api.documents.upload(formData);
-
-      setUploading(false);
-      setUploadModalOpen(false);
-      setSelectedFile(null);
-      setDocTitle('');
-      setDocDescription('');
-      setRightsDeclared(false);
-      await reloadData();
-    } catch (err: any) {
-      setValidationError(err.message || 'Error processing PDF upload.');
-      setUploading(false);
-    }
-  };
 
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,14 +127,14 @@ export default function MyLibraryPage() {
               <span>New Folder</span>
             </button>
 
-            <button
-              type="button"
+            <Link
+              href="/my-contributions"
               className={styles.uploadBtn}
-              onClick={() => setUploadModalOpen(true)}
+              style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
-              <UploadCloud size={16} />
-              <span>Upload PDF</span>
-            </button>
+              <Send size={16} />
+              <span>Submit via Telegram</span>
+            </Link>
           </div>
         </div>
 
@@ -365,9 +283,30 @@ export default function MyLibraryPage() {
           <div className={styles.docsGrid}>
             {displayedDocs.length === 0 ? (
               <div style={{ gridColumn: '1 / -1', padding: '4rem 2rem', textAlign: 'center', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', color: 'var(--text-muted)' }}>
-                <UploadCloud size={40} style={{ margin: '0 auto 1rem', display: 'block' }} />
-                <h3>No Documents Found</h3>
-                <p style={{ marginTop: '0.5rem' }}>Click &quot;Upload PDF&quot; above to add technical materials to your library.</p>
+                <FileText size={40} style={{ margin: '0 auto 1rem', display: 'block', opacity: 0.5 }} />
+                <h3 style={{ color: 'var(--text-primary)' }}>No Documents Found</h3>
+                <p style={{ marginTop: '0.5rem', color: 'var(--text-secondary)' }}>
+                  Submit technical materials via our Telegram group for admin review and publication.
+                </p>
+                <Link
+                  href="/my-contributions"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    marginTop: '1rem',
+                    padding: '0.55rem 1rem',
+                    background: 'var(--accent-primary)',
+                    color: '#fff',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                  }}
+                >
+                  <Send size={14} />
+                  <span>Submit via Telegram</span>
+                </Link>
               </div>
             ) : (
               displayedDocs.map((doc) => (
@@ -397,132 +336,6 @@ export default function MyLibraryPage() {
                 </div>
               ))
             )}
-          </div>
-        )}
-
-        {/* Upload Modal */}
-        {uploadModalOpen && (
-          <div className={styles.modalBackdrop}>
-            <div className={styles.modalCard}>
-              <div className={styles.modalHeader}>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Upload PDF Document
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setUploadModalOpen(false)}
-                  style={{ color: 'var(--text-muted)' }}
-                  aria-label="Close upload modal"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <label className={styles.fileDropzone}>
-                  <UploadCloud size={32} color="var(--accent-primary)" />
-                  <div>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {selectedFile ? selectedFile.name : 'Choose a PDF file or drag here'}
-                    </span>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                      Binary %PDF- header validated. Up to 100 MB.
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    onChange={handleFileChange}
-                    style={{ display: 'none' }}
-                  />
-                </label>
-
-                {validationError && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem', background: 'var(--accent-danger-light)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-danger)', fontSize: '0.85rem' }}>
-                    <AlertCircle size={16} />
-                    <span>{validationError}</span>
-                  </div>
-                )}
-
-                <div className={styles.inputGroup}>
-                  <label htmlFor="modalDocTitle" className={styles.inputLabel}>Document Title</label>
-                  <input
-                    id="modalDocTitle"
-                    type="text"
-                    required
-                    value={docTitle}
-                    onChange={(e) => setDocTitle(e.target.value)}
-                    placeholder="E.g. Database Internals & Index Structures"
-                    className={styles.textInput}
-                  />
-                </div>
-
-                <div className={styles.inputGroup}>
-                  <label htmlFor="modalDocDesc" className={styles.inputLabel}>Description</label>
-                  <textarea
-                    id="modalDocDesc"
-                    rows={3}
-                    value={docDescription}
-                    onChange={(e) => setDocDescription(e.target.value)}
-                    placeholder="Brief summary of document topics..."
-                    className={styles.textInput}
-                  />
-                </div>
-
-                <div className={styles.inputGroup}>
-                  <label htmlFor="modalDocCats" className={styles.inputLabel}>Categories (comma-separated)</label>
-                  <input
-                    id="modalDocCats"
-                    type="text"
-                    value={docCategories}
-                    onChange={(e) => setDocCategories(e.target.value)}
-                    className={styles.textInput}
-                  />
-                </div>
-
-                <div className={styles.checkboxRow}>
-                  <input
-                    type="checkbox"
-                    id="isPublicCheck"
-                    checked={isPublic}
-                    onChange={(e) => setIsPublic(e.target.checked)}
-                  />
-                  <label htmlFor="isPublicCheck">
-                    Submit to Public Library (requires community moderation approval before publication)
-                  </label>
-                </div>
-
-                <div className={styles.checkboxRow}>
-                  <input
-                    type="checkbox"
-                    id="rightsDeclaredCheck"
-                    checked={rightsDeclared}
-                    onChange={(e) => setRightsDeclared(e.target.checked)}
-                    required
-                  />
-                  <label htmlFor="rightsDeclaredCheck">
-                    I confirm that I possess the rights to store or distribute this document.
-                  </label>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setUploadModalOpen(false)}
-                    style={{ padding: '0.55rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-medium)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)' }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={uploading}
-                    style={{ padding: '0.55rem 1.25rem', background: 'var(--accent-primary)', border: 'none', borderRadius: 'var(--radius-sm)', color: '#fff', fontWeight: 600 }}
-                  >
-                    {uploading ? 'Validating & Uploading...' : 'Upload PDF'}
-                  </button>
-                </div>
-              </form>
-            </div>
           </div>
         )}
 
